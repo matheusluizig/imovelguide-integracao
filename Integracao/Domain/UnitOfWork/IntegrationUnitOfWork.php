@@ -62,7 +62,7 @@ class IntegrationUnitOfWork
         Integracao $integration, 
         ?IntegrationsQueues $queue = null, 
         ?IntegrationRun $run = null,
-        int $status = null,
+        ?int $status = null,
         array $additionalData = []
     ): self {
         $now = Carbon::now('America/Sao_Paulo')->toDateTimeString();

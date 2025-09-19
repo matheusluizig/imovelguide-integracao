@@ -111,7 +111,7 @@ class IntegrationCacheService
         return Cache::get($cacheKey);
     }
 
-    public function cacheXmlContent(int $integrationId, string $xmlContent, int $ttl = null): void
+    public function cacheXmlContent(int $integrationId, string $xmlContent, ?int $ttl = null): void
     {
         $cacheKey = $this->getXmlCacheKey($integrationId);
         $ttl = $ttl ?? self::DEFAULT_TTL;

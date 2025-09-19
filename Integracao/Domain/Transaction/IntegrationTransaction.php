@@ -30,7 +30,7 @@ class IntegrationTransaction
         });
     }
     
-    public static function markAsCompleted(int $integrationId, int $qtdImoveis = null, float $executionTime = null): void
+    public static function markAsCompleted(int $integrationId, ?int $qtdImoveis = null, ?float $executionTime = null): void
     {
         DB::transaction(function () use ($integrationId, $qtdImoveis, $executionTime) {
             $integration = Integracao::findOrFail($integrationId);
@@ -57,7 +57,7 @@ class IntegrationTransaction
         });
     }
     
-    public static function markAsError(int $integrationId, string $errorMessage, string $errorStep = null, array $errorDetails = null, float $executionTime = null): void
+    public static function markAsError(int $integrationId, string $errorMessage, ?string $errorStep = null, ?array $errorDetails = null, ?float $executionTime = null): void
     {
         DB::transaction(function () use ($integrationId, $errorMessage, $errorStep, $errorDetails, $executionTime) {
             $integration = Integracao::findOrFail($integrationId);
@@ -80,7 +80,7 @@ class IntegrationTransaction
         });
     }
     
-    public static function prepareForReprocessing(int $integrationId, int $priority = null): void
+    public static function prepareForReprocessing(int $integrationId, ?int $priority = null): void
     {
         DB::transaction(function () use ($integrationId, $priority) {
             $integration = Integracao::findOrFail($integrationId);
