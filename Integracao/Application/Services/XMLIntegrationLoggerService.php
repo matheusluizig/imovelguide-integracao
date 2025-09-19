@@ -3,7 +3,6 @@
 namespace App\Integracao\Application\Services;
 
 use App\Integracao\Domain\Entities\Integracao;
-use App\Integracao\Infrastructure\Parsers\XMLIntegrationsFactory;
 use Illuminate\Support\Facades\Log;
 use App\Services\DiscordLogService;
 
@@ -16,9 +15,20 @@ class XMLIntegrationLoggerService
     $this->integration = $integration;
   }
 
+  private function getUserAttribute(string $attribute, $default = 'unknown')
+  {
+    $user = $this->integration->user ?? null;
+
+    if (!$user) {
+      return $default;
+    }
+
+    return $user->{$attribute} ?? $default;
+  }
+
   public function loggerErrWarn(string $problem)
   {
-    
+
     Log::warning("🔧 PROBLEMA NA INTEGRAÇÃO: {$problem}", [
       'integration_id' => $this->integration->id ?? 'unknown',
       'integration_name' => $this->integration->system ?? 'unknown',
@@ -57,11 +67,11 @@ class XMLIntegrationLoggerService
           [
             'classe' => __CLASS__,
             'método' => __FUNCTION__,
-            'nome_usuario' => $this->integration->user->name,
-            'id_usuario' => $this->integration->user->id,
-            'link_xml' => $this->integration->link,
-            'id_integracao' => $this->integration->id,
-            'status_atual' => $this->integration->status,
+            'nome_usuario' => $this->getUserAttribute('name'),
+            'id_usuario' => $this->getUserAttribute('id'),
+            'link_xml' => $this->integration->link ?? 'unknown',
+            'id_integracao' => $this->integration->id ?? 'unknown',
+            'status_atual' => $this->integration->status ?? 'unknown',
             'tipo_integracao' => $this->integration->type ?? 'não especificado',
             'ultima_atualizacao' => $this->integration->updated_at ?? 'não especificado',
             'tentativas' => $this->integration->attempts ?? 0,
@@ -80,11 +90,11 @@ class XMLIntegrationLoggerService
           [
             'classe' => __CLASS__,
             'método' => __FUNCTION__,
-            'nome_usuario' => $this->integration->user->name,
-            'id_usuario' => $this->integration->user->id,
-            'link_xml' => $this->integration->link,
-            'id_integracao' => $this->integration->id,
-            'status_atual' => $this->integration->status,
+            'nome_usuario' => $this->getUserAttribute('name'),
+            'id_usuario' => $this->getUserAttribute('id'),
+            'link_xml' => $this->integration->link ?? 'unknown',
+            'id_integracao' => $this->integration->id ?? 'unknown',
+            'status_atual' => $this->integration->status ?? 'unknown',
             'tipo_integracao' => $this->integration->type ?? 'não especificado',
           ]
         );
@@ -98,15 +108,17 @@ class XMLIntegrationLoggerService
   public function loggerDone(int $total, int $countDone, string $problems = '')
   {
     $status = $total == $countDone ? 'Completo' : 'Parcialmente';
+    $userName = $this->getUserAttribute('name');
+    $userId = $this->getUserAttribute('id');
     $toLog = [
       'status' => $status,
-      'id_integracao' => $this->integration->id,
+      'id_integracao' => $this->integration->id ?? 'unknown',
       'total_imoveis' => $total,
       'total_processados' => $countDone,
       'taxa_sucesso' => $total > 0 ? round(($countDone / $total) * 100, 2) . '%' : '0%',
-      'nome_usuario' => $this->integration->user->name,
-      'id_usuario' => $this->integration->user->id,
-      'link_xml' => $this->integration->link,
+      'nome_usuario' => $userName,
+      'id_usuario' => $userId,
+      'link_xml' => $this->integration->link ?? 'unknown',
       'data_hora' => now()->format('Y-m-d H:i:s'),
       'tipo_integracao' => $this->integration->type ?? 'não especificado',
       'status_integracao' => $this->integration->status ?? 'não especificado',
