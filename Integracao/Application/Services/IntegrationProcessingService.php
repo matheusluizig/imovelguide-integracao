@@ -7,7 +7,6 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use App\Integracao\Domain\Entities\Integracao;
-use App\Integracao\Infrastructure\Parsers\XMLIntegrationsFactory;
 use App\Integracao\Application\Services\XMLIntegrationLoggerService;
 use App\Integracao\Infrastructure\Repositories\IntegrationRepository;
 use DiDom\Document;
@@ -16,20 +15,19 @@ use Exception;
 class IntegrationProcessingService
 {
     private IntegrationRepository $repository;
-    private XMLIntegrationLoggerService $logger;
+    private ?XMLIntegrationLoggerService $logger = null;
     private array $metrics = [];
 
     public function __construct(
-        IntegrationRepository $repository,
-        XMLIntegrationLoggerService $logger
+        IntegrationRepository $repository
     ) {
         $this->repository = $repository;
-        $this->logger = $logger;
     }
 
     public function processIntegration(Integracao $integration): array
     {
         $startTime = microtime(true);
+        $this->initializeLogger($integration);
 
         try {
             $this->validateIntegration($integration);
@@ -47,7 +45,7 @@ class IntegrationProcessingService
 
             $this->logSuccess($integration, $this->metrics);
 
-            return [
+            $response = [
                 'success' => true,
                 'processed_items' => $result['processed_items'] ?? 0,
                 'total_items' => $result['total_items'] ?? 0,
@@ -59,12 +57,26 @@ class IntegrationProcessingService
             $executionTime = microtime(true) - $startTime;
             $this->logError($integration, $e, $executionTime);
 
-            return [
+            $response = [
                 'success' => false,
                 'error' => $e->getMessage(),
                 'execution_time' => $executionTime
             ];
+        } finally {
+            $this->logger = null;
         }
+
+        return $response;
+    }
+
+    private function initializeLogger(Integracao $integration): void
+    {
+        $this->logger = new XMLIntegrationLoggerService($integration);
+    }
+
+    private function getLogger(): ?XMLIntegrationLoggerService
+    {
+        return $this->logger;
     }
 
     private function validateIntegration(Integracao $integration): void
@@ -422,11 +434,19 @@ class IntegrationProcessingService
 
     private function logSuccess(Integracao $integration, array $metrics): void
     {
-        $this->logger->loggerDone(
-            $metrics['total_items'],
-            $metrics['processed_items'],
-            "Integration processed successfully in {$metrics['execution_time']}s"
-        );
+        $logger = $this->getLogger();
+        if ($logger) {
+            $logger->loggerDone(
+                $metrics['total_items'],
+                $metrics['processed_items'],
+                "Integration processed successfully in {$metrics['execution_time']}s"
+            );
+        } else {
+            Log::warning('Integration logger not available to log success', [
+                'integration_id' => $integration->id,
+                'user_id' => $integration->user_id,
+            ]);
+        }
 
         Log::info("Integration completed successfully", [
             'integration_id' => $integration->id,
@@ -438,7 +458,16 @@ class IntegrationProcessingService
 
     private function logError(Integracao $integration, Exception $e, float $executionTime): void
     {
-        $this->logger->loggerErrWarn($e->getMessage());
+        $logger = $this->getLogger();
+        if ($logger) {
+            $logger->loggerErrWarn($e->getMessage());
+        } else {
+            Log::warning('Integration logger not available to log error', [
+                'integration_id' => $integration->id,
+                'user_id' => $integration->user_id,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         Log::error("Integration processing failed", [
             'integration_id' => $integration->id,

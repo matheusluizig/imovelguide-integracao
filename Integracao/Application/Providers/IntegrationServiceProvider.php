@@ -5,7 +5,6 @@ namespace App\Integracao\Application\Providers;
 use Illuminate\Support\ServiceProvider;
 use App\Integracao\Application\Services\IntegrationProcessingService;
 use App\Integracao\Application\Services\IntegrationCacheService;
-use App\Integracao\Application\Services\XMLIntegrationLoggerService;
 use App\Integracao\Infrastructure\Repositories\IntegrationRepository;
 
 class IntegrationServiceProvider extends ServiceProvider
@@ -15,8 +14,7 @@ class IntegrationServiceProvider extends ServiceProvider
         
         $this->app->singleton(IntegrationProcessingService::class, function ($app) {
             return new IntegrationProcessingService(
-                $app->make(IntegrationRepository::class),
-                $app->make(XMLIntegrationLoggerService::class)
+                $app->make(IntegrationRepository::class)
             );
         });
 
@@ -26,10 +24,6 @@ class IntegrationServiceProvider extends ServiceProvider
 
         $this->app->singleton(IntegrationRepository::class, function ($app) {
             return new IntegrationRepository();
-        });
-
-        $this->app->singleton(XMLIntegrationLoggerService::class, function ($app) {
-            return new XMLIntegrationLoggerService();
         });
     }
 
