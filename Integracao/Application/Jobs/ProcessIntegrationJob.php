@@ -10,6 +10,7 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Redis\Connections\PhpRedisConnection;
 use App\Integracao\Domain\Entities\Integracao;
 use App\Integracao\Domain\Entities\IntegrationsQueues;
 use App\Integracao\Application\Services\IntegrationProcessingService;
@@ -21,6 +22,40 @@ use Carbon\Carbon;
 class ProcessIntegrationJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    private const ACTIVE_INTEGRATIONS_SET_KEY = 'imovelguide_database_active_integrations';
+    private const ACTIVE_INTEGRATIONS_COUNT_KEY = 'imovelguide_database_active_integrations_count';
+    private const ACTIVE_INTEGRATIONS_TTL = 3600;
+    private const MAX_CONCURRENT_INTEGRATIONS = 3;
+
+    private const ACQUIRE_SLOT_LUA = <<<'LUA'
+local activeSetKey = KEYS[1]
+local counterKey = KEYS[2]
+local integrationId = ARGV[1]
+local maxSlots = tonumber(ARGV[2])
+local ttl = tonumber(ARGV[3])
+
+if redis.call('SISMEMBER', activeSetKey, integrationId) == 1 then
+    return 0
+end
+
+local currentCount = tonumber(redis.call('GET', counterKey) or '0')
+if currentCount >= maxSlots then
+    return 0
+end
+
+redis.call('SADD', activeSetKey, integrationId)
+if ttl > 0 then
+    redis.call('EXPIRE', activeSetKey, ttl)
+end
+
+local newCount = redis.call('INCR', counterKey)
+if ttl > 0 then
+    redis.call('EXPIRE', counterKey, ttl)
+end
+
+return newCount
+LUA;
 
     public $integrationId;
     public $timeout = 86400; 
@@ -291,51 +326,49 @@ class ProcessIntegrationJob implements ShouldQueue
     private function acquireIntegrationSlot(): bool
     {
         try {
-            $redis = app('redis');
-            
-            // Verificar se já está processando
-            $isActive = $redis->sismember('imovelguide_database_active_integrations', $this->integrationId);
+            $redis = app('redis')->connection();
+
+            $scriptResult = $this->executeAcquireSlotScript($redis);
+            if ($scriptResult > 0) {
+                Log::debug('Integration slot acquired successfully', [
+                    'integration_id' => $this->integrationId,
+                    'current_count' => $scriptResult
+                ]);
+                return true;
+            }
+
+            $isActive = $redis->sismember(self::ACTIVE_INTEGRATIONS_SET_KEY, $this->integrationId);
             if ($isActive) {
-                Log::info("Integration already active, slot not available", [
+                Log::info('Integration already active, slot not available', [
                     'integration_id' => $this->integrationId
                 ]);
                 return false;
             }
 
-            // Verificar limite de concorrência primeiro
-            $count = $redis->get('imovelguide_database_active_integrations_count') ?: 0;
-            if ($count >= 3) {
-                // Limpar slots órfãos apenas se o limite foi atingido
+            $count = (int) ($redis->get(self::ACTIVE_INTEGRATIONS_COUNT_KEY) ?: 0);
+            if ($count >= self::MAX_CONCURRENT_INTEGRATIONS) {
                 $this->cleanupOrphanedSlots($redis);
-                
-                // Verificar novamente após limpeza
-                $count = $redis->get('imovelguide_database_active_integrations_count') ?: 0;
-                if ($count >= 3) {
-                    Log::info("Max concurrent integrations reached, slot not available", [
+
+                $scriptResult = $this->executeAcquireSlotScript($redis);
+                if ($scriptResult > 0) {
+                    Log::debug('Integration slot acquired successfully after cleanup', [
                         'integration_id' => $this->integrationId,
-                        'current_count' => $count
+                        'current_count' => $scriptResult
                     ]);
-                    return false;
+                    return true;
                 }
-            }
 
-            // Adquirir slot
-            $redis->multi();
-            $redis->incr('imovelguide_database_active_integrations_count');
-            $redis->expire('imovelguide_database_active_integrations_count', 3600);
-            $redis->sadd('imovelguide_database_active_integrations', $this->integrationId);
-            $redis->expire('imovelguide_database_active_integrations', 3600);
-            $result = $redis->exec();
-
-            if ($result) {
-                Log::debug("Integration slot acquired successfully", [
-                    'integration_id' => $this->integrationId
+                $count = (int) ($redis->get(self::ACTIVE_INTEGRATIONS_COUNT_KEY) ?: 0);
+                Log::info('Max concurrent integrations reached, slot not available', [
+                    'integration_id' => $this->integrationId,
+                    'current_count' => $count
                 ]);
-                return true;
+                return false;
             }
 
-            Log::debug("Failed to acquire integration slot - transaction failed", [
-                'integration_id' => $this->integrationId
+            Log::info('Integration slot unavailable due to unexpected state', [
+                'integration_id' => $this->integrationId,
+                'current_count' => $count
             ]);
             return false;
 
@@ -348,24 +381,52 @@ class ProcessIntegrationJob implements ShouldQueue
         }
     }
 
+    private function executeAcquireSlotScript($redis): int
+    {
+        $result = $this->evalLuaScript(
+            $redis,
+            self::ACQUIRE_SLOT_LUA,
+            [
+                self::ACTIVE_INTEGRATIONS_SET_KEY,
+                self::ACTIVE_INTEGRATIONS_COUNT_KEY,
+            ],
+            [
+                (string) $this->integrationId,
+                self::MAX_CONCURRENT_INTEGRATIONS,
+                self::ACTIVE_INTEGRATIONS_TTL,
+            ]
+        );
+
+        return (int) $result;
+    }
+
+    private function evalLuaScript($redis, string $script, array $keys, array $arguments)
+    {
+        if ($redis instanceof PhpRedisConnection) {
+            return $redis->eval($script, array_merge($keys, $arguments), count($keys));
+        }
+
+        return $redis->eval($script, count($keys), ...$keys, ...$arguments);
+    }
+
     /**
      * Libera um slot de integração
      */
     private function releaseIntegrationSlot(): void
     {
         try {
-            $redis = app('redis');
-            
+            $redis = app('redis')->connection();
+
             // Remover da lista de ativos
-            $wasActive = $redis->srem('imovelguide_database_active_integrations', $this->integrationId);
-            
+            $wasActive = $redis->srem(self::ACTIVE_INTEGRATIONS_SET_KEY, $this->integrationId);
+
             if ($wasActive) {
                 // Decrementar contador
-                $count = $redis->decr('imovelguide_database_active_integrations_count');
+                $count = $redis->decr(self::ACTIVE_INTEGRATIONS_COUNT_KEY);
                 if ($count < 0) {
-                    $redis->set('imovelguide_database_active_integrations_count', 0);
+                    $redis->set(self::ACTIVE_INTEGRATIONS_COUNT_KEY, 0);
                 }
-                
+
                 Log::debug("Integration slot released successfully", [
                     'integration_id' => $this->integrationId,
                     'remaining_count' => max(0, $count)
@@ -400,8 +461,8 @@ class ProcessIntegrationJob implements ShouldQueue
             }
 
             try {
-                $activeIntegrations = $redis->smembers('imovelguide_database_active_integrations');
-                $currentCount = $redis->get('imovelguide_database_active_integrations_count') ?: 0;
+                $activeIntegrations = $redis->smembers(self::ACTIVE_INTEGRATIONS_SET_KEY);
+                $currentCount = $redis->get(self::ACTIVE_INTEGRATIONS_COUNT_KEY) ?: 0;
                 
                 Log::debug("Checking for orphaned slots", [
                     'active_integrations' => $activeIntegrations,
@@ -411,7 +472,7 @@ class ProcessIntegrationJob implements ShouldQueue
                 if (empty($activeIntegrations)) {
                     // Se não há slots ativos mas o contador não é zero, resetar
                     if ($currentCount > 0) {
-                        $redis->set('imovelguide_database_active_integrations_count', 0);
+                        $redis->set(self::ACTIVE_INTEGRATIONS_COUNT_KEY, 0);
                         Log::info("Reset integration count to 0 - no active integrations found");
                     }
                     return;
@@ -437,13 +498,13 @@ class ProcessIntegrationJob implements ShouldQueue
                     // Usar transação para garantir consistência
                     $redis->multi();
                     foreach ($orphanedSlots as $integrationId) {
-                        $redis->srem('imovelguide_database_active_integrations', $integrationId);
+                        $redis->srem(self::ACTIVE_INTEGRATIONS_SET_KEY, $integrationId);
                     }
                     $redis->exec();
 
                     // Ajustar contador
                     $newCount = max(0, $currentCount - count($orphanedSlots));
-                    $redis->set('imovelguide_database_active_integrations_count', $newCount);
+                    $redis->set(self::ACTIVE_INTEGRATIONS_COUNT_KEY, $newCount);
 
                     Log::info("Orphaned slots cleaned up", [
                         'removed_slots' => count($orphanedSlots),
