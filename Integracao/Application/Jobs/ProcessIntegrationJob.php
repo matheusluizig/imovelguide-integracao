@@ -27,8 +27,8 @@ class ProcessIntegrationJob implements ShouldQueue
     public $tries = 5; // Aumentando o número de tentativas
     public $backoff = [60, 300, 900, 3600, 7200]; // 1min, 5min, 15min, 1h, 2h
 
-    private string $slotStatus = 'unknown';
-    private ?string $slotErrorMessage = null;
+    private $slotStatus = 'unknown';
+    private $slotErrorMessage = null;
 
     public function __construct(int $integrationId, ?string $queueName = null)
     {
