@@ -18,7 +18,7 @@ class XMLIntegrationLoggerService
 
   public function loggerErrWarn(string $problem)
   {
-    // Log detalhado para debug da migração S3
+    
     Log::warning("🔧 PROBLEMA NA INTEGRAÇÃO: {$problem}", [
       'integration_id' => $this->integration->id ?? 'unknown',
       'integration_name' => $this->integration->system ?? 'unknown',
@@ -26,10 +26,10 @@ class XMLIntegrationLoggerService
       'timestamp' => now()->format('Y-m-d H:i:s')
     ]);
 
-    // Este log continua indo para o canal de avisos de integração, o que está correto.
-    // Log info removido
+    
+    
 
-    // Lista de erros críticos que impedem cliente de anunciar/integrar imóveis
+    
     $businessCriticalErrors = [
       'Falha ao inserir anúncio',
       'Falha ao atualizar anúncio',
@@ -39,7 +39,7 @@ class XMLIntegrationLoggerService
       'Erro de autenticação no XML',
     ];
 
-    // Lista de erros que afetam pagamento/cobrança
+    
     $paymentCriticalErrors = [
       'Falha ao criar cobrança',
       'Falha ao atualizar cobrança',
@@ -48,7 +48,7 @@ class XMLIntegrationLoggerService
       'Falha ao cancelar plano',
     ];
 
-    // Verifica se é erro crítico de negócio (cliente não consegue anunciar)
+    
     foreach ($businessCriticalErrors as $criticalError) {
       if (strpos($problem, $criticalError) !== false) {
         DiscordLogService::logBusinessCriticalError(
@@ -71,7 +71,7 @@ class XMLIntegrationLoggerService
       }
     }
 
-    // Verifica se é erro de pagamento/plano
+    
     foreach ($paymentCriticalErrors as $paymentError) {
       if (strpos($problem, $paymentError) !== false) {
         DiscordLogService::logPaymentError(
@@ -92,7 +92,7 @@ class XMLIntegrationLoggerService
       }
     }
 
-    // Se chegou aqui, é apenas um aviso (continua só no canal de integração)
+    
   }
 
   public function loggerDone(int $total, int $countDone, string $problems = '')
@@ -118,6 +118,6 @@ class XMLIntegrationLoggerService
       $toLog['problemas'] = $problems;
     }
 
-    // Log info removido
+    
   }
 }

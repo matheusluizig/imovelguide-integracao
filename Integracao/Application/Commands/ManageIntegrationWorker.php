@@ -85,25 +85,25 @@ class ManageIntegrationWorker extends Command
         $this->line('═══════════════════════════════════════════════');
 
         try {
-            // Status do supervisor
+            
             $output = Process::run('sudo supervisorctl status integration-worker:*')->output();
             $this->line('👷 Worker Supervisor:');
             $this->line($output);
 
-            // Jobs nas filas Redis
+            
             $priorityJobs = DB::table('jobs')->where('queue', 'priority-integrations')->count();
             $levelJobs = DB::table('jobs')->where('queue', 'level-integrations')->count();
             $normalJobs = DB::table('jobs')->where('queue', 'normal-integrations')->count();
             $totalJobs = $priorityJobs + $levelJobs + $normalJobs;
             $this->line("📋 Jobs nas filas Redis: {$totalJobs} (Priority: {$priorityJobs}, Level: {$levelJobs}, Normal: {$normalJobs})");
-            // Jobs em processamento com detalhes (limitado para performance)
+            
             $processingJobs = DB::table('integrations_queues')
                 ->select('id', 'integration_id', 'started_at', 'execution_time')
                 ->where('status', 1)
-                ->limit(50) // Mostrar até 50 integrações rodando
+                ->limit(50) 
                 ->get();
 
-            // Contar total de jobs em processamento (rápido)
+            
             $totalProcessing = DB::table('integrations_queues')
                 ->select('id')
                 ->where('status', 1)
@@ -127,8 +127,8 @@ class ManageIntegrationWorker extends Command
                     $startedAt = \Carbon\Carbon::parse($job->started_at);
                     $elapsed = $startedAt->diffForHumans(now(), true);
 
-                    // Calcular porcentagem baseada no tempo decorrido (estimativa)
-                    $estimatedTotalTime = 300; // 5 minutos estimado
+                    
+                    $estimatedTotalTime = 300; 
                     $elapsedSeconds = $startedAt->diffInSeconds(now());
                     $percentage = min(round(($elapsedSeconds / $estimatedTotalTime) * 100), 95);
 
@@ -139,7 +139,7 @@ class ManageIntegrationWorker extends Command
             $this->line("🔄 Jobs em processamento: 0");
             }
 
-            // Jobs concluídos hoje
+            
             $completedToday = DB::table('integrations_queues')
                 ->select('id')
                 ->where('status', 2)
@@ -147,7 +147,7 @@ class ManageIntegrationWorker extends Command
                 ->count();
             $this->line("✅ Jobs concluídos hoje: {$completedToday}");
 
-            // Jobs com erro hoje
+            
             $errorToday = DB::table('integrations_queues')
                 ->select('id')
                 ->where('status', 3)
@@ -155,7 +155,7 @@ class ManageIntegrationWorker extends Command
                 ->count();
             $this->line("❌ Jobs com erro hoje: {$errorToday}");
 
-            // Estatísticas de tempo médio
+            
             $avgTime = DB::table('integrations_queues')
                 ->select('execution_time')
                 ->where('status', 2)

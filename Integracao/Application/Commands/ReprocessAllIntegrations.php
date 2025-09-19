@@ -18,7 +18,7 @@ class ReprocessAllIntegrations extends Command
         $this->info('🔄 Reprocessando Todas as Integrações');
         $this->line('═══════════════════════════════════════════════');
 
-        // 1. Limpar filas Redis primeiro
+        
         $this->info('🧹 Limpando filas Redis...');
         $priorityJobs = DB::table('jobs')->where('queue', 'priority-integrations')->count();
         $levelJobs = DB::table('jobs')->where('queue', 'level-integrations')->count();
@@ -28,12 +28,12 @@ class ReprocessAllIntegrations extends Command
         $totalJobs = $priorityJobs + $levelJobs + $normalJobs;
         $this->info("✅ {$totalJobs} jobs removidos das filas Redis (Priority: {$priorityJobs}, Level: {$levelJobs}, Normal: {$normalJobs})");
 
-        // 2. Resetar TODOS os jobs na tabela manual (reprocessamento completo)
+        
         $this->info('🔄 Resetando TODOS os jobs para reprocessamento...');
         $totalJobs = DB::table('integrations_queues')->count();
         $orphansReset = DB::table('integrations_queues')
             ->update([
-                'status' => 0, // STATUS_PENDING
+                'status' => 0, 
                 'started_at' => null,
                 'completed_at' => null,
                 'ended_at' => null,
@@ -47,7 +47,7 @@ class ReprocessAllIntegrations extends Command
             ]);
         $this->info("✅ {$orphansReset} de {$totalJobs} jobs resetados completamente");
 
-        // 3. Buscar integrações elegíveis - Query otimizada com join
+        
         $this->info('📋 Buscando integrações elegíveis...');
         $integrations = Integracao::select('integracao_xml.id', 'integracao_xml.user_id', 'integracao_xml.status', 'integracao_xml.system', 'integracao_xml.updated_at')
             ->join('users', 'integracao_xml.user_id', '=', 'users.id')
@@ -62,7 +62,7 @@ class ReprocessAllIntegrations extends Command
             return 0;
         }
 
-        // 4. ✅ CORREÇÃO: Usar sistema automático - apenas resetar status para pendente
+        
         $this->info("🚀 Resetando status para pendente (sistema automático despachará)...");
 
         $bar = $this->output->createProgressBar($integrations->count());
@@ -71,8 +71,8 @@ class ReprocessAllIntegrations extends Command
         $resetJobs = 0;
         foreach ($integrations->chunk($chunkSize) as $chunk) {
             foreach ($chunk as $integration) {
-                // ✅ CORREÇÃO: Apenas resetar status - Model Event despachará automaticamente
-                // Buscar priority do usuário de forma otimizada
+                
+                
                 $userPriority = DB::table('users')
                     ->select('integration_priority')
                     ->where('id', $integration->user_id)
@@ -94,14 +94,14 @@ class ReprocessAllIntegrations extends Command
                 $bar->advance();
             }
 
-            // Pequena pausa entre lotes para não sobrecarregar
-            usleep(100000); // 0.1 segundo
+            
+            usleep(100000); 
         }
 
         $bar->finish();
         $this->newLine();
 
-        // 5. Verificar resultado
+        
         $priorityJobs = DB::table('jobs')->where('queue', 'priority-integrations')->count();
         $levelJobs = DB::table('jobs')->where('queue', 'level-integrations')->count();
         $normalJobs = DB::table('jobs')->where('queue', 'normal-integrations')->count();
@@ -110,7 +110,7 @@ class ReprocessAllIntegrations extends Command
         $this->info("✅ {$resetJobs} jobs resetados para pendente");
         $this->info("📊 Total de jobs nas filas Redis: {$totalJobsInQueue} (Priority: {$priorityJobs}, Level: {$levelJobs}, Normal: {$normalJobs})");
 
-        // 6. Instruções finais
+        
         $this->newLine();
         $this->info('🎯 Próximos passos:');
         $this->line('1. Iniciar worker supervisor: sudo supervisorctl start imovelguide-integration-worker:*');

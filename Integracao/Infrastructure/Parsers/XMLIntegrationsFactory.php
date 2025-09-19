@@ -25,7 +25,7 @@ class XMLIntegrationsFactory
 
   public function __construct()
   {
-    // Document será criado quando necessário para evitar problemas de serialização
+    
   }
 
   public function setIntegrationAndLoadXml(Integracao $integration, $document = null)
@@ -52,8 +52,8 @@ class XMLIntegrationsFactory
         $xmlFirstElement = $this->xml->getDocument()->firstChild;
 
         if ($xmlFirstElement && ($xmlFirstElement->getAttribute('xmlns') || $xmlFirstElement->getAttribute('xsi'))) {
-          $xmlFirstElement->removeAttributeNS($xmlFirstElement->getAttribute('xmlns'), ''); // Remove xmlns.
-          $xmlFirstElement->removeAttributeNS($xmlFirstElement->getAttribute('xsi'), ''); // Remove xmlns.
+          $xmlFirstElement->removeAttributeNS($xmlFirstElement->getAttribute('xmlns'), ''); 
+          $xmlFirstElement->removeAttributeNS($xmlFirstElement->getAttribute('xsi'), ''); 
           $this->xml->load(
             $this->xml->xml(),
             false,
@@ -81,44 +81,44 @@ class XMLIntegrationsFactory
 
   public function findProvider(): void
   {
-    // Log XML structure for debugging
+    
     $this->logXmlStructure();
 
     if ($this->xml->has('ListingDataFeed') && ($this->xml->has('Listings') || $this->xml->has('ListingDataFeed Listings') || $this->xml->find('ListingDataFeed Listings')->count() > 0)) {
-      // EnglishGlobal Model - Otimizado!
+      
       $this->provider = new EnglishGlobalModel($this->xml, $this->integration);
     } elseif ($this->xml->has('ListingDataFeed') && $this->xml->has('Properties')) {
-      // Imóvel Guide Model - Otimizado!
+      
       $this->provider = new IGModel($this->xml, $this->integration);
     } elseif ($this->xml->has('Union')) {
-      // Union Model - Otimizado!
+      
       $this->provider = new UnionModel($this->xml, $this->integration);
     } elseif ($this->xml->has('publish') && $this->xml->has('properties')) {
-      // Creci Model - Otimizado!
+      
       $this->provider = new CreciModel($this->xml, $this->integration);
     } elseif ($this->xml->has('Carga')) {
-      // TecImob Model - Otimizado!
+      
       $this->provider = new TecImobModel($this->xml, $this->integration);
     } elseif ($this->xml->has('Anuncios')) {
-      // Vista Model - Otimizado!
+      
       $this->provider = new VistaModel($this->xml, $this->integration);
     } elseif ($this->xml->has('imobibrasil')) {
-      // ImobiBrasil Model - Otimizado!
+      
       $this->provider = new ImobiBrasilModel($this->xml, $this->integration);
     } elseif ($this->xml->has('OpenNavent')) {
-      // OpenNavent Model - Otimizado!
+      
       $this->provider = new OpenNaventModel($this->xml, $this->integration);
     } elseif ($this->xml->has('ad')) {
-      // MigMidia Model - Otimizado!
+      
       $this->provider = new MigMidiaModel($this->xml, $this->integration);
     } else {
       $integrationId = $this->integration ? $this->integration->id : 'N/A';
       $integrationLink = $this->integration ? $this->integration->link : 'N/A';
 
-      // Enhanced error message with XML structure details
+      
       $xmlStructure = $this->getXmlStructureInfo();
 
-      // Log detailed XML structure for debugging
+      
       \Illuminate\Support\Facades\Log::error("XML Provider Not Found", [
         'integration_id' => $integrationId,
         'integration_link' => $integrationLink,
@@ -175,7 +175,7 @@ class XMLIntegrationsFactory
       \Illuminate\Support\Facades\Log::info("XML Structure Analysis", [
         'integration_id' => $this->integration->id,
         'root_element' => $rootName,
-        'child_elements' => array_slice($childElements, 0, 10), // First 10 children
+        'child_elements' => array_slice($childElements, 0, 10), 
         'total_children' => count($childElements),
         'xml_size' => strlen($this->xml->xml())
       ]);

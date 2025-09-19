@@ -41,19 +41,19 @@ class IntegrationHealthCheck extends Command
             'metrics' => []
         ];
 
-        // Verificar workers
+        
         $this->checkWorkers($health);
 
-        // Verificar filas
+        
         $this->checkQueues($health);
 
-        // Verificar integrações
+        
         $this->checkIntegrations($health);
 
-        // Verificar performance
+        
         $this->checkPerformance($health);
 
-        // Verificar recursos
+        
         $this->checkResources($health);
 
         return $health;
@@ -202,7 +202,7 @@ class IntegrationHealthCheck extends Command
                 'success_rate' => $successRate
             ];
 
-            if ($avgExecutionTime > 1800) { // 30 minutos
+            if ($avgExecutionTime > 1800) { 
                 $health['issues'][] = "Tempo médio de execução muito alto: " . round($avgExecutionTime) . "s";
             }
 
@@ -224,11 +224,11 @@ class IntegrationHealthCheck extends Command
         $this->line('💾 Verificando recursos...');
 
         try {
-            // Verificar memória Redis
+            
             $redisInfo = shell_exec('redis-cli info memory 2>/dev/null | grep used_memory_human');
             $memoryUsage = trim($redisInfo);
 
-            // Verificar espaço em disco
+            
             $diskUsage = shell_exec('df -h /var/www 2>/dev/null | tail -1 | awk \'{print $5}\'');
             $diskUsage = trim($diskUsage);
 

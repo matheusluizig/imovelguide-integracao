@@ -47,7 +47,7 @@ class IntegrationMetricsCommand extends Command
         $this->line("Integrações Ativas: {$activeIntegrations}");
         $this->line("Em Processamento: {$processingIntegrations}");
 
-        // Workers ativos
+        
         $activeWorkers = $this->getActiveWorkersCount();
         $this->line("Workers Ativos: {$activeWorkers}");
     }
@@ -72,7 +72,7 @@ class IntegrationMetricsCommand extends Command
         $this->line("Jobs Concluídos ({$period}h): {$completedJobs}");
         $this->line("Jobs com Erro ({$period}h): {$errorJobs}");
 
-        // Taxa de sucesso
+        
         $totalProcessed = $completedJobs + $errorJobs;
         $successRate = $totalProcessed > 0 ? round(($completedJobs / $totalProcessed) * 100, 2) : 0;
         $this->line("Taxa de Sucesso: {$successRate}%");
@@ -86,7 +86,7 @@ class IntegrationMetricsCommand extends Command
 
         $since = now()->subHours($period);
 
-        // Tempo médio de execução
+        
         $avgExecutionTime = IntegrationsQueues::where('status', IntegrationsQueues::STATUS_DONE)
             ->where('completed_at', '>=', $since)
             ->whereNotNull('execution_time')
@@ -96,14 +96,14 @@ class IntegrationMetricsCommand extends Command
             $this->line("Tempo Médio de Execução: " . round($avgExecutionTime, 2) . "s");
         }
 
-        // Throughput (jobs por hora)
+        
         $jobsPerHour = IntegrationsQueues::where('status', IntegrationsQueues::STATUS_DONE)
             ->where('completed_at', '>=', $since)
             ->count() / $period;
 
         $this->line("Throughput: " . round($jobsPerHour, 2) . " jobs/hora");
 
-        // Jobs mais lentos
+        
         $slowestJobs = IntegrationsQueues::where('status', IntegrationsQueues::STATUS_DONE)
             ->where('completed_at', '>=', $since)
             ->whereNotNull('execution_time')
@@ -129,7 +129,7 @@ class IntegrationMetricsCommand extends Command
 
         $since = now()->subHours($period);
 
-        // Erros por tipo
+        
         $errorTypes = IntegrationsQueues::where('status', IntegrationsQueues::STATUS_ERROR)
             ->where('updated_at', '>=', $since)
             ->whereNotNull('last_error_step')
@@ -145,7 +145,7 @@ class IntegrationMetricsCommand extends Command
             }
         }
 
-        // Erros recentes
+        
         $recentErrors = IntegrationsQueues::where('status', IntegrationsQueues::STATUS_ERROR)
             ->where('updated_at', '>=', $since)
             ->orderBy('updated_at', 'desc')
@@ -181,7 +181,7 @@ class IntegrationMetricsCommand extends Command
                 $this->line("Memória Usada: " . ($info['used_memory_human'] ?? 'N/A'));
                 $this->line("Chaves no Cache: " . ($info['db0'] ?? 'N/A'));
 
-                // Chaves de integração no cache
+                
                 $integrationKeys = $redis->keys('integration_*');
                 $this->line("Chaves de Integração: " . count($integrationKeys));
 

@@ -11,8 +11,8 @@ use Carbon\Carbon;
 class IntegrationLoggingService
 {
     private const LOG_CHANNEL = 'integration';
-    private const CONTEXT_CACHE_TTL = 3600; // 1 hora
-    private const METRICS_CACHE_TTL = 300; // 5 minutos
+    private const CONTEXT_CACHE_TTL = 3600; 
+    private const METRICS_CACHE_TTL = 300; 
 
     public function logIntegrationStart(Integracao $integration, array $context = []): string
     {
@@ -34,7 +34,7 @@ class IntegrationLoggingService
 
         Log::channel(self::LOG_CHANNEL)->info('🚀 Integration started', $logData);
         
-        // Cache do contexto para correlação
+        
         $this->cacheLogContext($correlationId, $logData);
         
         return $correlationId;
@@ -74,10 +74,10 @@ class IntegrationLoggingService
 
         Log::channel(self::LOG_CHANNEL)->info('✅ Integration completed successfully', $logData);
         
-        // Atualizar métricas de performance
+        
         $this->updatePerformanceMetrics($integration, $metrics, $executionTime);
         
-        // Limpar cache do contexto
+        
         $this->clearLogContext($correlationId);
     }
 
@@ -107,13 +107,13 @@ class IntegrationLoggingService
 
         Log::channel(self::LOG_CHANNEL)->error('❌ Integration failed', $logData);
         
-        // Log crítico para Discord se necessário
+        
         $this->logCriticalError($integration, $exception, $logData);
         
-        // Atualizar métricas de erro
+        
         $this->updateErrorMetrics($integration, $exception);
         
-        // Limpar cache do contexto
+        
         $this->clearLogContext($correlationId);
     }
 
@@ -168,15 +168,15 @@ class IntegrationLoggingService
 
     public function getLogsByCorrelationId(string $correlationId): array
     {
-        // Em produção, isso seria implementado com um sistema de busca de logs
-        // Por enquanto, retorna dados do cache
+        
+        
         return Cache::get("log_context_{$correlationId}", []);
     }
 
     public function getIntegrationLogs(int $integrationId, int $limit = 100): array
     {
-        // Em produção, isso seria implementado com um sistema de busca de logs
-        // Por enquanto, retorna métricas do cache
+        
+        
         return Cache::get("integration_logs_{$integrationId}", []);
     }
 
@@ -249,7 +249,7 @@ class IntegrationLoggingService
         
         $existingErrors[] = $errorData;
         
-        // Manter apenas os últimos 10 erros
+        
         if (count($existingErrors) > 10) {
             $existingErrors = array_slice($existingErrors, -10);
         }
@@ -259,7 +259,7 @@ class IntegrationLoggingService
 
     private function logCriticalError(Integracao $integration, \Throwable $exception, array $logData): void
     {
-        // Verificar se é um erro crítico que precisa de alerta
+        
         $criticalPatterns = [
             'Falha ao inserir anúncio',
             'Falha ao atualizar anúncio',

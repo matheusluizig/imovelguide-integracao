@@ -80,7 +80,7 @@ class IntegrationLogAnalyzer extends Command
             $this->line("   Taxa de sucesso: {$successRate}%");
         }
 
-        // Top sistemas com mais logs
+        
         $this->showTopSystems($logFiles, $since);
     }
 
@@ -113,7 +113,7 @@ class IntegrationLogAnalyzer extends Command
             $this->line('───────────────────────────────────────────────');
         }
 
-        // Análise de tipos de erro
+        
         $this->analyzeErrorTypes($errorLogs);
     }
 
@@ -132,7 +132,7 @@ class IntegrationLogAnalyzer extends Command
             return;
         }
 
-        // Calcular métricas
+        
         $executionTimes = array_column($performanceLogs, 'execution_time');
         $executionTimes = array_filter($executionTimes, function($time) {
             return $time !== null && $time > 0;
@@ -151,7 +151,7 @@ class IntegrationLogAnalyzer extends Command
             $this->line("   Mediana: {$medianTime}s");
         }
 
-        // Top integrações mais lentas
+        
         $this->showSlowestIntegrations($performanceLogs);
     }
 
@@ -201,7 +201,7 @@ class IntegrationLogAnalyzer extends Command
                 continue;
             }
 
-            // Parse básico do formato de log do Laravel
+            
             if (preg_match('/^\[(.*?)\].*?(\w+):\s*(.*)$/', $line, $matches)) {
                 $timestamp = Carbon::parse($matches[1]);
                 
@@ -236,7 +236,7 @@ class IntegrationLogAnalyzer extends Command
             }
         }
 
-        // Ordenar por timestamp e limitar
+        
         usort($errorLogs, function($a, $b) {
             return strtotime($b['timestamp']) - strtotime($a['timestamp']);
         });
@@ -266,10 +266,10 @@ class IntegrationLogAnalyzer extends Command
 
     private function parseStructuredLog(string $message): array
     {
-        // Parse básico de logs estruturados
+        
         $data = [];
         
-        // Tentar extrair JSON do log
+        
         if (preg_match('/\{.*\}/', $message, $matches)) {
             $jsonData = json_decode($matches[0], true);
             if ($jsonData) {
@@ -305,7 +305,7 @@ class IntegrationLogAnalyzer extends Command
             $this->line("🏆 Top Sistemas por Volume de Logs:");
             $count = 0;
             foreach ($systems as $system => $logCount) {
-                if ($count >= 10) break; // Top 10
+                if ($count >= 10) break; 
                 $this->line("   {$system}: {$logCount} logs");
                 $count++;
             }
@@ -320,7 +320,7 @@ class IntegrationLogAnalyzer extends Command
             if (isset($log['error']['message'])) {
                 $message = $log['error']['message'];
                 
-                // Categorizar tipos de erro
+                
                 if (strpos($message, 'timeout') !== false) {
                     $errorTypes['Timeout'] = ($errorTypes['Timeout'] ?? 0) + 1;
                 } elseif (strpos($message, 'memory') !== false) {
@@ -347,7 +347,7 @@ class IntegrationLogAnalyzer extends Command
 
     private function showSlowestIntegrations(array $performanceLogs): void
     {
-        // Filtrar e ordenar por tempo de execução
+        
         $slowIntegrations = array_filter($performanceLogs, function($log) {
             return isset($log['execution_time']) && $log['execution_time'] > 0;
         });
@@ -374,7 +374,7 @@ class IntegrationLogAnalyzer extends Command
     {
         $this->line("🔍 Buscando logs para correlation ID: {$correlationId}");
         
-        // Em produção, isso seria implementado com um sistema de busca de logs
+        
         $this->info("Funcionalidade de busca por correlation ID será implementada com sistema de busca de logs");
     }
 
@@ -382,7 +382,7 @@ class IntegrationLogAnalyzer extends Command
     {
         $this->line("🔍 Buscando logs para integration ID: {$integrationId}");
         
-        // Em produção, isso seria implementado com um sistema de busca de logs
+        
         $this->info("Funcionalidade de busca por integration ID será implementada com sistema de busca de logs");
     }
 

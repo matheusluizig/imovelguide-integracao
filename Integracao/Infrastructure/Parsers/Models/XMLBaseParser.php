@@ -72,7 +72,7 @@ abstract class XMLBaseParser
     $this->updateType = Integracao::XML_STATUS_IN_UPDATE_BOTH;
     $this->LPPService = new LevelsPlansPermissionService();
 
-    // Otimização: Cache de dados do usuário
+    
     $this->cacheUserData();
   }
 
@@ -81,7 +81,7 @@ abstract class XMLBaseParser
     if ($this->integration && $this->integration->user) {
       $user = $this->integration->user;
 
-      // Cache de dados que serão usados frequentemente
+      
       $this->userData = [
         'id' => $user->id,
         'level' => $user->level ?? 0,
@@ -115,7 +115,7 @@ abstract class XMLBaseParser
     return self::DEFAULT_TYPE_IMOVEL;
   }
 
-  // Método comum: seta opções básicas.
+  
   public function setOptions(array $options): void
   {
     foreach ($options as $key => $value) {
@@ -141,7 +141,7 @@ abstract class XMLBaseParser
     }
   }
 
-  // Método comum: chama o parserXml de toda classe que herda a classe base.
+  
   public function parser(): void
   {
     try {
@@ -156,7 +156,7 @@ abstract class XMLBaseParser
     }
   }
 
-  // Método comum: chama o prepareXmlData de toda classe que herda a classe base.
+  
   public function prepareData(): void
   {
     try {
@@ -171,7 +171,7 @@ abstract class XMLBaseParser
     }
   }
 
-  // Método comum: chama o insertXmlData de toda classe que herda a classe base.
+  
   public function insertData(): void
   {
     try {
@@ -186,19 +186,19 @@ abstract class XMLBaseParser
     }
   }
 
-  // Método comum: Pega a quantidade de imóveis totais no xml.
+  
   public function getImoveisCount(): int
   {
     return $this->imoveisCount;
   }
 
-  // Método comum: Pega quantidade de imóveis feitos.
+  
   public function getImoveisMade(): int
   {
     return $this->quantityMade;
   }
 
-  // Método comum: Compara os imóveis pra ver se precisa de update.
+  
   protected function isDifferentImovel($existingImovel, $data): bool
   {
     return $existingImovel->type_id != $data['type_id'] ||
@@ -227,7 +227,7 @@ abstract class XMLBaseParser
       $existingImovel->xml != 1;
   }
 
-  // Método comum: Compara os imóveis pra ver se precisa de update.
+  
   protected function isDifferentCondominium($existingCondominium, $condominiumData): bool
   {
     return $existingCondominium->condominiun_id != $condominiumData['condominiun_id'] ||
@@ -239,7 +239,7 @@ abstract class XMLBaseParser
       $existingCondominium->terrain_size != $condominiumData['terrain_size'];
   }
 
-  // Método comum: Compara os imóveis pra ver se precisa de update.
+  
   protected function isDifferentLocation($condLocation, $checkLocation): bool
   {
     return $condLocation->mostrar_endereco != $checkLocation['mostrar_endereco'] ||
@@ -289,28 +289,28 @@ abstract class XMLBaseParser
     try {
       $cleanImageName = str_replace('integration/', '', $imageFileName);
 
-      // Verificar se a imagem existe no S3
+      
       if (!Storage::disk('do_spaces')->exists($s3Path)) {
         return;
       }
 
-      // Baixar imagem do S3 para processamento
+      
       $imageData = Storage::disk('do_spaces')->get($s3Path);
       $tempPath = tempnam(sys_get_temp_dir(), 'integration_img_');
       file_put_contents($tempPath, $imageData);
 
-      // Processar imagem original (LARGE)
+      
       $img = Image::make($tempPath)
         ->orientate()
         ->resize(768, 432, function ($constraint) {
           $constraint->aspectRatio();
         });
 
-      // Salvar versão LARGE de volta no S3
+      
       $largeData = $img->encode('webp', 85)->getEncoded();
       Storage::disk('do_spaces')->put($s3Path, $largeData, 'public');
 
-      // Criar versão SMALL
+      
       $smallImg = Image::make($tempPath)
         ->orientate()
         ->resize(280, 250, function ($constraint) {
@@ -320,7 +320,7 @@ abstract class XMLBaseParser
       $smallData = $smallImg->encode('webp', 85)->getEncoded();
       Storage::disk('do_spaces')->put("images/integration/properties/small/{$cleanImageName}.webp", $smallData, 'public');
 
-      // Criar versão MEDIUM
+      
       $mediumImg = Image::make($tempPath)
         ->orientate()
         ->resize(360, 280, function ($constraint) {
@@ -330,7 +330,7 @@ abstract class XMLBaseParser
       $mediumData = $mediumImg->encode('webp', 85)->getEncoded();
       Storage::disk('do_spaces')->put("images/integration/properties/medium/{$cleanImageName}.webp", $mediumData, 'public');
 
-      // Limpar arquivo temporário
+      
       unlink($tempPath);
 
     } catch (\Exception $e) {
@@ -346,13 +346,13 @@ abstract class XMLBaseParser
     try {
       $curImageName = str_replace('integration/', '', $imageFileName);
 
-      // Remover imagem original do S3
+      
       $originalPath = "images/integration/{$curImageName}";
       if (Storage::disk('do_spaces')->exists($originalPath)) {
         Storage::disk('do_spaces')->delete($originalPath);
       }
 
-      // Remover versão medium do S3 (tenta .webp primeiro, depois sem extensão)
+      
       $mediumPathWebp = "images/integration/properties/medium/{$curImageName}.webp";
       $mediumPathOld = "images/integration/properties/medium/{$curImageName}";
 
@@ -362,7 +362,7 @@ abstract class XMLBaseParser
         Storage::disk('do_spaces')->delete($mediumPathOld);
       }
 
-      // Remover versão small do S3 (tenta .webp primeiro, depois sem extensão)
+      
       $smallPathWebp = "images/integration/properties/small/{$curImageName}.webp";
       $smallPathOld = "images/integration/properties/small/{$curImageName}";
 
@@ -463,7 +463,7 @@ abstract class XMLBaseParser
   {
     if ($this->integration->queue) {
       $this->integration->queue->status = IntegrationsQueues::STATUS_IN_PROCESS;
-      $this->integration->queue->started_at = now(); // ✅ CORREÇÃO: Usar now() do Laravel
+      $this->integration->queue->started_at = now(); 
       $this->integration->queue->save();
     }
   }
@@ -471,10 +471,10 @@ abstract class XMLBaseParser
   public function endIntegration()
   {
     if ($this->integration->queue) {
-      // ✅ CORREÇÃO: Só atualizar se não estiver já finalizado
+      
       if ($this->integration->queue->status != IntegrationsQueues::STATUS_DONE) {
         $this->integration->queue->status = IntegrationsQueues::STATUS_DONE;
-        $this->integration->queue->ended_at = now(); // ✅ CORREÇÃO: Usar now() do Laravel
+        $this->integration->queue->ended_at = now(); 
         $this->integration->queue->save();
       }
     }
@@ -484,7 +484,7 @@ abstract class XMLBaseParser
   {
     if ($this->integration->queue) {
       $this->integration->queue->status = IntegrationsQueues::STATUS_ERROR;
-      $this->integration->queue->ended_at = now(); // ✅ CORREÇÃO: Usar now() do Laravel
+      $this->integration->queue->ended_at = now(); 
       $this->integration->queue->save();
     }
 
@@ -494,27 +494,27 @@ abstract class XMLBaseParser
 
   public function removeOldData($imovelData)
   {
-    // Otimização: Usar dados em cache do usuário
+    
     $userId = $this->userData['id'] ?? $this->integration->user->id;
 
-    // Otimização: Buscar apenas os códigos dos imóveis atuais para comparação
+    
     $currentCodes = collect($imovelData)->pluck('CodigoImovel')->filter()->toArray();
 
-    // Otimização: Query mais eficiente com eager loading
+    
     $imoveisXML = Anuncio::with(['gallery', 'anuncioBeneficio', 'endereco'])
       ->where('user_id', $userId)
       ->where('xml', 1)
-      ->whereNotIn('codigo', $currentCodes) // Filtrar direto na query
+      ->whereNotIn('codigo', $currentCodes) 
       ->get();
 
     $deletedCount = 0;
     $imageCount = 0;
 
-    // Otimização: Processar em lotes para melhor performance
+    
     $imoveisXML->chunk(50)->each(function ($chunk) use (&$deletedCount, &$imageCount) {
       $anuncioIds = $chunk->pluck('id')->toArray();
 
-      // Coletar todas as imagens para deletar
+      
       $imagesToDelete = [];
       foreach ($chunk as $xml) {
         foreach ($xml->gallery as $image) {
@@ -522,24 +522,24 @@ abstract class XMLBaseParser
         }
       }
 
-      // Deletar imagens em lote
+      
       foreach ($imagesToDelete as $imageName) {
         $this->deleteIntegrationImage($imageName);
         $imageCount++;
       }
 
-      // Deletar registros relacionados em lote
+      
       DB::table('lista_corretores_da_construtora')->whereIn('anuncio_id', $anuncioIds)->delete();
       DB::table('anuncio_images')->whereIn('anuncio_id', $anuncioIds)->delete();
       DB::table('anuncio_beneficio')->whereIn('anuncio_id', $anuncioIds)->delete();
       DB::table('anuncio_enderecos')->whereIn('anuncio_id', $anuncioIds)->delete();
 
-      // Deletar anúncios em lote
+      
       Anuncio::whereIn('id', $anuncioIds)->delete();
       $deletedCount += count($anuncioIds);
     });
 
-    // Otimização: Atualizações em lote para melhor performance
+    
     DB::table('anuncios')
       ->where('user_id', $userId)
       ->where('xml', 0)
@@ -548,7 +548,7 @@ abstract class XMLBaseParser
         'status' => 'desativado',
       ]);
 
-    // Unhighlight all xml ads.
+    
     DB::table('anuncios')
       ->where('user_id', $userId)
       ->where('xml', 1)
@@ -556,7 +556,7 @@ abstract class XMLBaseParser
         'ig_highlight' => 0,
       ]);
 
-    // Otimização: Processar highlights de forma mais eficiente
+    
     $adsHighlightLimits = $this->LPPService->getAdsLimits($this->integration->user);
     $userAdsLimit = $adsHighlightLimits['limit'] + $adsHighlightLimits['bonus'];
 
@@ -569,7 +569,7 @@ abstract class XMLBaseParser
       ->filter()
       ->toArray();
 
-    // Otimização: Update em lote para highlights
+    
     if (!empty($highlightedAds)) {
       DB::table('anuncios')
         ->where('user_id', $userId)
@@ -578,7 +578,7 @@ abstract class XMLBaseParser
         ->update(['ig_highlight' => 1]);
     }
 
-    // Log de performance
+    
     Log::info("Old data removal completed", [
       'integration_id' => $this->integration->id,
       'deleted_ads' => $deletedCount,

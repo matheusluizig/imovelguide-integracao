@@ -2,7 +2,7 @@
 
 namespace App\Integracao\Infrastructure\Helpers;
 
-// Support.
+
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\DB;
 use Throwable; 
@@ -45,14 +45,14 @@ class IntegrationHelper {
             return $info;
         }
 
-        // Usar cache para evitar requisições repetidas
+        
         $cacheKey = 'link_info_' . md5($link);
         if (cache()->has($cacheKey)) {
             return cache()->get($cacheKey);
         }
 
         try {
-            $response = Http::timeout(60) // 1 minuto para verificação de link
+            $response = Http::timeout(60) 
                 ->withHeaders([
                     'User-Agent' => 'ImovelGuide/1.0 (XML Integration Service; +https://imovelguide.com.br)'
                 ])
@@ -69,7 +69,7 @@ class IntegrationHelper {
         $info['code'] = $statusCode;
         if (!$statusCode || $statusCode !== 200) {
             $info['fileType'] = 'Link inválido.';
-            cache()->put($cacheKey, $info, now()->addMinutes(30)); // Cache por 30 minutos
+            cache()->put($cacheKey, $info, now()->addMinutes(30)); 
             return $info;
         }
 
