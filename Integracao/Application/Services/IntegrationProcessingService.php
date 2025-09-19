@@ -5,6 +5,7 @@ namespace App\Integracao\Application\Services;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use App\Integracao\Domain\Entities\Integracao;
 use App\Integracao\Infrastructure\Parsers\XMLIntegrationsFactory;
 use App\Integracao\Application\Services\XMLIntegrationLoggerService;
@@ -100,6 +101,7 @@ class IntegrationProcessingService
     private function fetchXmlContent(Integracao $integration): string
     {
         $cacheKey = "xml_content_{$integration->id}_" . md5($integration->link);
+        $fallbackAttempted = false;
 
         
         try {
@@ -126,8 +128,8 @@ class IntegrationProcessingService
                     'attempt' => $attempt
                 ]);
 
-                $response = Http::timeout(600) 
-                    ->retry(2, 2000) 
+                $response = Http::timeout(600)
+                    ->retry(2, 2000)
                     ->withHeaders([
                         'User-Agent' => 'ImovelGuide-Integration/1.0',
                         'Accept' => 'application/xml, text/xml, */*',
@@ -219,14 +221,7 @@ class IntegrationProcessingService
                 }
 
                 
-                try {
-                    Cache::put($cacheKey, $xmlContent, 3600);
-                } catch (\Exception $e) {
-                    Log::warning("Cache write failed, continuing without cache", [
-                        'integration_id' => $integration->id,
-                        'error' => $e->getMessage()
-                    ]);
-                }
+                $this->storeXmlInCache($cacheKey, $integration, $xmlContent);
 
                 Log::info("XML content fetched successfully", [
                     'integration_id' => $integration->id,
@@ -276,6 +271,34 @@ class IntegrationProcessingService
                     'attempt' => $attempt
                 ]);
 
+                if (!$fallbackAttempted && Str::contains(strtolower($e->getMessage()), 'curl error 18')) {
+                    $fallbackAttempted = true;
+
+                    Log::warning("Attempting fallback fetch after cURL error 18", [
+                        'integration_id' => $integration->id,
+                        'url' => $integration->link,
+                        'attempt' => $attempt
+                    ]);
+
+                    try {
+                        $xmlContent = $this->fetchXmlContentWithFallback($integration);
+                        $this->storeXmlInCache($cacheKey, $integration, $xmlContent);
+
+                        Log::info("Fallback fetch succeeded", [
+                            'integration_id' => $integration->id,
+                            'content_size' => strlen($xmlContent)
+                        ]);
+
+                        return $xmlContent;
+                    } catch (Exception $fallbackException) {
+                        Log::error("Fallback fetch failed", [
+                            'integration_id' => $integration->id,
+                            'url' => $integration->link,
+                            'error' => $fallbackException->getMessage()
+                        ]);
+                    }
+                }
+
                 if ($attempt < $maxRetries) {
                     sleep($retryDelay / 1000);
                     $retryDelay *= 2;
@@ -287,6 +310,71 @@ class IntegrationProcessingService
         }
 
         throw new Exception("Failed to fetch XML content after all retries");
+    }
+
+    private function fetchXmlContentWithFallback(Integracao $integration): string
+    {
+        $curl = curl_init();
+
+        if ($curl === false) {
+            throw new Exception('Unable to initialize cURL for fallback request');
+        }
+
+        $headers = [
+            'User-Agent: ImovelGuide-Integration/1.0',
+            'Accept: application/xml, text/xml, */*',
+            'Accept-Encoding: identity',
+            'Connection: close',
+            'Cache-Control: no-cache',
+        ];
+
+        curl_setopt_array($curl, [
+            CURLOPT_URL => $integration->link,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_MAXREDIRS => 5,
+            CURLOPT_CONNECTTIMEOUT => 30,
+            CURLOPT_TIMEOUT => 600,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => false,
+            CURLOPT_HTTPHEADER => $headers,
+            CURLOPT_ENCODING => '',
+        ]);
+
+        $response = curl_exec($curl);
+
+        if ($response === false) {
+            $error = curl_error($curl);
+            $errorCode = curl_errno($curl);
+            curl_close($curl);
+
+            throw new Exception("cURL fallback failed ({$errorCode}): {$error}");
+        }
+
+        $statusCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        curl_close($curl);
+
+        if ($statusCode >= 400) {
+            throw new Exception("Fallback HTTP error {$statusCode} for URL: {$integration->link}");
+        }
+
+        if (empty($response)) {
+            throw new Exception("Fallback request returned empty response for URL: {$integration->link}");
+        }
+
+        return $response;
+    }
+
+    private function storeXmlInCache(string $cacheKey, Integracao $integration, string $xmlContent): void
+    {
+        try {
+            Cache::put($cacheKey, $xmlContent, 3600);
+        } catch (\Exception $e) {
+            Log::warning("Cache write failed, continuing without cache", [
+                'integration_id' => $integration->id,
+                'error' => $e->getMessage()
+            ]);
+        }
     }
 
     private function processXmlContent(Integracao $integration, string $xmlContent): array
