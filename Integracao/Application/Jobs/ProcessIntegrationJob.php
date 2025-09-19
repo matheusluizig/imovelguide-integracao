@@ -150,8 +150,18 @@ LUA;
             }
 
             if ($queue->status === IntegrationsQueues::STATUS_IN_PROCESS) {
-                Log::info("Integration already processing, releasing job for retry", ['integration_id' => $this->integrationId]);
-                $this->release(60);
+                $delaySeconds = 60;
+                $queueName = $this->job ? $this->job->getQueue() : $this->determineQueueName($this->integrationId);
+
+                Log::info("Integration already processing, re-dispatching job with delay", [
+                    'integration_id' => $this->integrationId,
+                    'queue' => $queueName,
+                    'delay_seconds' => $delaySeconds,
+                    'attempt' => $this->attempts(),
+                ]);
+
+                $this->delete();
+                self::dispatch($this->integrationId, $queueName)->delay(now()->addSeconds($delaySeconds));
                 return;
             }
 
@@ -169,8 +179,18 @@ LUA;
                 $lock = Cache::lock($cacheKey, 21600);
 
                 if (!$lock->get()) {
-                    Log::info("Integration already being processed, releasing job for retry", ['integration_id' => $this->integrationId]);
-                    $this->release(300);
+                    $delaySeconds = 300;
+                    $queueName = $this->job ? $this->job->getQueue() : $this->determineQueueName($this->integrationId);
+
+                    Log::info("Integration already being processed, re-dispatching job with delay", [
+                        'integration_id' => $this->integrationId,
+                        'queue' => $queueName,
+                        'delay_seconds' => $delaySeconds,
+                        'attempt' => $this->attempts(),
+                    ]);
+
+                    $this->delete();
+                    self::dispatch($this->integrationId, $queueName)->delay(now()->addSeconds($delaySeconds));
                     return;
                 }
 
