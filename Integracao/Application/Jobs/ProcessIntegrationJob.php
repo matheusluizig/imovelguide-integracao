@@ -23,9 +23,12 @@ class ProcessIntegrationJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public $integrationId;
-    public $timeout = 86400; 
+    public $timeout = 86400;
     public $tries = 5; // Aumentando o número de tentativas
     public $backoff = [60, 300, 900, 3600, 7200]; // 1min, 5min, 15min, 1h, 2h
+
+    private string $slotStatus = 'unknown';
+    private ?string $slotErrorMessage = null;
 
     public function __construct(int $integrationId, ?string $queueName = null)
     {
@@ -77,8 +80,30 @@ class ProcessIntegrationJob implements ShouldQueue
 
         // Controle de concorrência - máximo 3 integrações simultâneas
         if (!$this->acquireIntegrationSlot()) {
-            Log::info("Integration slot not available, releasing job for retry", ['integration_id' => $this->integrationId]);
-            $this->release(60); // Retry em 60 segundos
+            $queueName = $this->job ? $this->job->getQueue() : $this->determineQueueName($this->integrationId);
+
+            if ($this->slotStatus === 'error') {
+                Log::error('Failed to acquire integration slot due to error', [
+                    'integration_id' => $this->integrationId,
+                    'error' => $this->slotErrorMessage,
+                ]);
+
+                throw new \RuntimeException($this->slotErrorMessage ?? 'Unknown error acquiring integration slot');
+            }
+
+            $delaySeconds = 60;
+
+            Log::info("Integration slot not available, re-dispatching job with delay", [
+                'integration_id' => $this->integrationId,
+                'attempt' => $this->attempts(),
+                'queue' => $queueName,
+                'delay_seconds' => $delaySeconds,
+                'slot_status' => $this->slotStatus,
+            ]);
+
+            $this->delete();
+            self::dispatch($this->integrationId, $queueName)->delay(now()->addSeconds($delaySeconds));
+
             return;
         }
 
@@ -296,6 +321,7 @@ class ProcessIntegrationJob implements ShouldQueue
             // Verificar se já está processando
             $isActive = $redis->sismember('imovelguide_database_active_integrations', $this->integrationId);
             if ($isActive) {
+                $this->slotStatus = 'already_active';
                 Log::info("Integration already active, slot not available", [
                     'integration_id' => $this->integrationId
                 ]);
@@ -315,6 +341,7 @@ class ProcessIntegrationJob implements ShouldQueue
                         'integration_id' => $this->integrationId,
                         'current_count' => $count
                     ]);
+                    $this->slotStatus = 'max_reached';
                     return false;
                 }
             }
@@ -328,6 +355,7 @@ class ProcessIntegrationJob implements ShouldQueue
             $result = $redis->exec();
 
             if ($result) {
+                $this->slotStatus = 'acquired';
                 Log::debug("Integration slot acquired successfully", [
                     'integration_id' => $this->integrationId
                 ]);
@@ -337,6 +365,7 @@ class ProcessIntegrationJob implements ShouldQueue
             Log::debug("Failed to acquire integration slot - transaction failed", [
                 'integration_id' => $this->integrationId
             ]);
+            $this->slotStatus = 'transaction_failed';
             return false;
 
         } catch (\Exception $e) {
@@ -344,6 +373,8 @@ class ProcessIntegrationJob implements ShouldQueue
                 'integration_id' => $this->integrationId,
                 'error' => $e->getMessage()
             ]);
+            $this->slotStatus = 'error';
+            $this->slotErrorMessage = $e->getMessage();
             return false;
         }
     }
