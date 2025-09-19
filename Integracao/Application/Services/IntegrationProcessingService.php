@@ -239,6 +239,18 @@ class IntegrationProcessingService
                     'attempt' => $attempt
                 ]);
 
+                $fallbackContent = $this->attemptFallbackOnCurlError18(
+                    $integration,
+                    $cacheKey,
+                    $e,
+                    $fallbackAttempted,
+                    $attempt
+                );
+
+                if ($fallbackContent !== null) {
+                    return $fallbackContent;
+                }
+
                 if ($attempt < $maxRetries) {
                     sleep($retryDelay / 1000);
                     $retryDelay *= 2;
@@ -254,6 +266,18 @@ class IntegrationProcessingService
                     'error' => $e->getMessage(),
                     'attempt' => $attempt
                 ]);
+
+                $fallbackContent = $this->attemptFallbackOnCurlError18(
+                    $integration,
+                    $cacheKey,
+                    $e,
+                    $fallbackAttempted,
+                    $attempt
+                );
+
+                if ($fallbackContent !== null) {
+                    return $fallbackContent;
+                }
 
                 if ($attempt < $maxRetries) {
                     sleep($retryDelay / 1000);
@@ -271,32 +295,16 @@ class IntegrationProcessingService
                     'attempt' => $attempt
                 ]);
 
-                if (!$fallbackAttempted && Str::contains(strtolower($e->getMessage()), 'curl error 18')) {
-                    $fallbackAttempted = true;
+                $fallbackContent = $this->attemptFallbackOnCurlError18(
+                    $integration,
+                    $cacheKey,
+                    $e,
+                    $fallbackAttempted,
+                    $attempt
+                );
 
-                    Log::warning("Attempting fallback fetch after cURL error 18", [
-                        'integration_id' => $integration->id,
-                        'url' => $integration->link,
-                        'attempt' => $attempt
-                    ]);
-
-                    try {
-                        $xmlContent = $this->fetchXmlContentWithFallback($integration);
-                        $this->storeXmlInCache($cacheKey, $integration, $xmlContent);
-
-                        Log::info("Fallback fetch succeeded", [
-                            'integration_id' => $integration->id,
-                            'content_size' => strlen($xmlContent)
-                        ]);
-
-                        return $xmlContent;
-                    } catch (Exception $fallbackException) {
-                        Log::error("Fallback fetch failed", [
-                            'integration_id' => $integration->id,
-                            'url' => $integration->link,
-                            'error' => $fallbackException->getMessage()
-                        ]);
-                    }
+                if ($fallbackContent !== null) {
+                    return $fallbackContent;
                 }
 
                 if ($attempt < $maxRetries) {
@@ -363,6 +371,52 @@ class IntegrationProcessingService
         }
 
         return $response;
+    }
+
+    private function attemptFallbackOnCurlError18(
+        Integracao $integration,
+        string $cacheKey,
+        Exception $exception,
+        bool &$fallbackAttempted,
+        int $attempt
+    ): ?string {
+        if ($fallbackAttempted) {
+            return null;
+        }
+
+        if (!Str::contains(Str::lower($exception->getMessage()), 'curl error 18')) {
+            return null;
+        }
+
+        $fallbackAttempted = true;
+
+        Log::warning("Attempting fallback fetch after cURL error 18", [
+            'integration_id' => $integration->id,
+            'url' => $integration->link,
+            'attempt' => $attempt
+        ]);
+
+        try {
+            $xmlContent = $this->fetchXmlContentWithFallback($integration);
+            $this->storeXmlInCache($cacheKey, $integration, $xmlContent);
+
+            Log::info("Fallback fetch succeeded", [
+                'integration_id' => $integration->id,
+                'content_size' => strlen($xmlContent),
+                'attempt' => $attempt
+            ]);
+
+            return $xmlContent;
+        } catch (Exception $fallbackException) {
+            Log::error("Fallback fetch failed", [
+                'integration_id' => $integration->id,
+                'url' => $integration->link,
+                'error' => $fallbackException->getMessage(),
+                'attempt' => $attempt
+            ]);
+        }
+
+        return null;
     }
 
     private function storeXmlInCache(string $cacheKey, Integracao $integration, string $xmlContent): void
