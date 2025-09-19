@@ -58,7 +58,7 @@ class IntegrationValidationService
         for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
             try {
                 $response = Http::withUserAgent('ImovelGuide/1.0 (XML Integration Service; +https://imovelguide.com.br)')
-                    ->timeout(120) // 2 minutos para validação
+                    ->timeout(120) 
                     ->get($url);
 
                 if ($response && $response->getStatusCode() === 200) {
@@ -98,7 +98,7 @@ class IntegrationValidationService
             $document = new Document();
             $document->load($xmlContent, false, Document::TYPE_XML);
 
-            // Criar mock do response
+            
             $mockResponse = new class ($xmlContent) {
                 private $content;
                 public function __construct($content) {
@@ -111,7 +111,7 @@ class IntegrationValidationService
 
             $this->factory->setResponse($mockResponse);
 
-            // Simular integração para usar setIntegrationAndLoadXml
+            
             $integration = new \App\Integracao\Domain\Entities\Integracao();
             $integration->id = 999;
             $integration->link = 'test';

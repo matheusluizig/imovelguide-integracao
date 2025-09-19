@@ -2,7 +2,7 @@
 
 namespace App\Integracao\Infrastructure\Parsers\Models;
 
-// Support.
+
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
@@ -11,7 +11,7 @@ use Carbon\Carbon;
 use Storage;
 use Image;
 
-// Models.
+
 use App\User;
 use App\Imovel;
 use App\Bairro;
@@ -27,49 +27,49 @@ use App\AnuncioBeneficio;
 use App\Services\AnuncioService;
 use App\Integracao\Infrastructure\Parsers\Models\XMLBaseParser;
 
-// Services.
+
 use App\Services\InviteService;
 
-// Modelo property é da Union Softwares.
+
 class UnionModel extends XMLBaseParser {
     public function __construct(Document $xml, Integracao $integration) {
         parent::__construct($xml, $integration);
         $this->startIntegration();
     }
 
-    // Método abstrato que toda classe de XML terá.
-    // Função: Extrair dados de cada imóvel para ser inserido no banco de dados.
+    
+    
     protected function parserXml() : Void {
         $imoveis = $this->getXml()->find('Imovel');
         $this->imoveisCount = count($imoveis);
 
         foreach ($imoveis as $index => $imovel) {
-            /*
-            O index em $data é a própria coluna no banco de dados,
-            e comentado
-            $this->data['coluna'] = $imovel->child(0)->text();
-            */
+            
+
+
+
+
             $data = [];
-            $data['CodigoImovel'] = $imovel->find('Codigoimovel')[0]->text(); // Attr: <Codigoimovel>.
+            $data['CodigoImovel'] = $imovel->find('Codigoimovel')[0]->text(); 
             $data['Subtitle'] = NULL;
-            $subTitle = $imovel->find('Titulo'); // Attr: <Titulo>.
+            $subTitle = $imovel->find('Titulo'); 
             if (count($subTitle)) {
                 $data['Subtitle'] = $subTitle[0]->text();
             }
 
             $data['Descricao'] = '';
             if ($imovel->has('Anuncioparainternet')) {
-                $data['Descricao'] = $imovel->find('Anuncioparainternet')[0]->text(); // Attr: <Anuncioparainternet>.
+                $data['Descricao'] = $imovel->find('Anuncioparainternet')[0]->text(); 
             }
 
-            // Season/Rent/Sale
+            
             $season = $imovel->find('Temporada');
             $rent = $imovel->find('Locacao');
             $sale = $imovel->find('Venda');
 
-            $data['TipoOferta'] = $this->getOfferType($season, $rent, $sale); // Attr(Child): <Temporada/Locacao/Venda>.
+            $data['TipoOferta'] = $this->getOfferType($season, $rent, $sale); 
 
-            $data['PrecoVenda'] = 0; // Attr(Child): <Valorvenda>. Default.
+            $data['PrecoVenda'] = 0; 
             if ($imovel->has('Valorvenda')) {
                 $data['PrecoVenda'] = $imovel->find('Valorvenda')[0]->text();
                 if ($data['PrecoVenda'] == '') {
@@ -80,7 +80,7 @@ class UnionModel extends XMLBaseParser {
                 $data['PrecoVenda'] = 0;
             }
 
-            $data['PrecoLocacao'] = 0; // Attr(Child): <Valorlocacao>. Default.
+            $data['PrecoLocacao'] = 0; 
             if ($imovel->has('Valorlocacao')) {
                 $data['PrecoLocacao'] = $imovel->find('Valorlocacao')[0]->text();
                 if ($data['PrecoLocacao'] == '') {
@@ -88,7 +88,7 @@ class UnionModel extends XMLBaseParser {
                 }
             }
 
-            $data['PrecoTemporada'] = NULL; // Attr(Child): <Valortemporada>. Default.
+            $data['PrecoTemporada'] = NULL; 
             if ($imovel->has('Valortemporada')) {
                 $data['PrecoTemporada'] = $imovel->find('Valortemporada')[0]->text();
                 if ($data['PrecoTemporada'] == '') {
@@ -96,23 +96,23 @@ class UnionModel extends XMLBaseParser {
                 }
             }
 
-            $data['Spotlight'] = 0; // Attr(Child): <Destaque>.
-            $data['Highlighted'] = NULL; // Attr(Child): <Destaque>.
+            $data['Spotlight'] = 0; 
+            $data['Highlighted'] = NULL; 
             if ($imovel->has('Destaque')) {
                 $data['Highlighted'] = intval($imovel->find('Destaque')[0]->text());
             }
 
-            $data['GarantiaAluguel'] = NULL; // Attr(Child): <RentalGuarantee>.
-            /*if ($imovel->has('RentalGuarantee')) {
-                $data['GarantiaAluguel'] = $imovel->find('RentalGuarantee')[0]->text();
-            }*/
+            $data['GarantiaAluguel'] = NULL; 
             
-            $data['ValorIPTU'] = NULL; // Attr(Child): <Valoriptu>.
+
+
+            
+            $data['ValorIPTU'] = NULL; 
             if ($imovel->has('Valoriptu')) {
                 $data['ValorIPTU'] = $imovel->find('Valoriptu')[0]->text();
             }
             
-            $data['PrecoCondominio'] = NULL; // Attr(Child): <Valorcondominio>.
+            $data['PrecoCondominio'] = NULL; 
             if ($imovel->has('Valorcondominio')) {
                 $data['PrecoCondominio'] = $imovel->find('Valorcondominio')[0]->text();
                 if ($data['PrecoCondominio'] == '') {
@@ -120,34 +120,34 @@ class UnionModel extends XMLBaseParser {
                 }
             }
 
-            $data['Permuta'] = 0; // Attr(Child): <Permuta>.
+            $data['Permuta'] = 0; 
             if ($imovel->has('Permuta')) {
                 $data['Permuta'] = intval($imovel->find('Permuta')[0]->text());
             }
 
-            $data['Andares'] = NULL; // Attr(Child): <Andares>.
+            $data['Andares'] = NULL; 
             if ($imovel->has('Andares')) {
                 $data['Andares'] = $imovel->find('Andares')[0]->text();
             }
 
-            $data['UnidadesAndar'] = NULL; // Attr(Child): <>.
-            /*if ($imovel->has('')) {
-                $data['UnidadesAndar'] = $imovel->find('')[0]->text();
-            }*/
+            $data['UnidadesAndar'] = NULL; 
+            
 
-            $data['Torres'] = NULL; // Attr(Child): <>.
-            /*if ($imovel->has('')) {
-                $data['Torres'] = $imovel->find('')[0]->text();
-            }*/
 
-            $data['Construtora'] = 0; // Attr(Child): <Construtora>.
+
+            $data['Torres'] = NULL; 
+            
+
+
+
+            $data['Construtora'] = 0; 
             if ($imovel->has('Construtora')) {
                 $data['Construtora'] = $imovel->find('Construtora')[0]->text();
             }
 
-            $data['MostrarEndereco'] = 2; // Attr(Child): <>.
+            $data['MostrarEndereco'] = 2; 
 
-            $data['AreaTotal'] = NULL; // Attr(Child): <Areatotalsemdeciamal>.
+            $data['AreaTotal'] = NULL; 
             if ($imovel->has('Areatotalsemdeciamal')) {
                 $data['AreaTotal'] = $imovel->find('Areatotalsemdeciamal')[0]->text();
             }
@@ -157,14 +157,14 @@ class UnionModel extends XMLBaseParser {
                 }
             }
 
-            $data['TipoImovel'] = $imovel->find('Tipo')[0]->text(); // Attr(Child): <Tipo>.
+            $data['TipoImovel'] = $imovel->find('Tipo')[0]->text(); 
             $data['NomeImovel'] = "";
-            $data['Novo'] = NULL; // Attr(Child): <>.
-            /*if ($imovel->has('')) {
-                $data['Novo'] = $imovel->find('')[0]->text();
-            }*/
+            $data['Novo'] = NULL; 
+            
 
-            $data['AreaUtil'] = 0; // Attr(Child): <Areautilsemdeciamal>.
+
+
+            $data['AreaUtil'] = 0; 
             if ($imovel->has('Areautilsemdeciamal')) {
                 $data['AreaUtil'] = $imovel->find('Areautilsemdeciamal')[0]->text();
             }
@@ -177,7 +177,7 @@ class UnionModel extends XMLBaseParser {
                 $data['AreaUtil'] = 0;
             }
 
-            $data['AreaTerreno'] = 0; // Attr(Child): <Areaterrenosemdeciamal>.
+            $data['AreaTerreno'] = 0; 
             if ($imovel->has('Areaterrenosemdeciamal')) {
                 $data['AreaTerreno'] = $imovel->find('Areaterrenosemdeciamal')[0]->text();
             }
@@ -190,7 +190,7 @@ class UnionModel extends XMLBaseParser {
                 $data['AreaTerreno'] = 0;
             }
 
-            $data['AreaConstruida'] = NULL; // Attr(Child): <Areacosntruidasemdeciamal>.
+            $data['AreaConstruida'] = NULL; 
             if ($imovel->has('Areacosntruidasemdeciamal')) {
                 $data['AreaConstruida'] = $imovel->find('Areacosntruidasemdeciamal')[0]->text();
             }
@@ -203,85 +203,85 @@ class UnionModel extends XMLBaseParser {
                 $data['AreaConstruida'] = 0;
             }
 
-            $data['AnoConstrucao'] = 0; // Attr(Child): <AnoConstrucao>.
+            $data['AnoConstrucao'] = 0; 
             if ($imovel->has('AnoConstrucao')) {
                 $data['AnoConstrucao'] = $imovel->find('AnoConstrucao')[0]->text();
             }
 
-            $data['QtdDormitorios'] = 0; // Attr(Child): <Dormitorios>.
+            $data['QtdDormitorios'] = 0; 
             if ($imovel->has('Dormitorios')) {
                 $data['QtdDormitorios'] = $imovel->find('Dormitorios')[0]->text();
             }
 
-            $data['QtdSuites'] = NULL; // Attr(Child): <Suite>.
+            $data['QtdSuites'] = NULL; 
             if ($imovel->has('Suite')) {
                 $data['QtdSuites'] = $imovel->find('Suite')[0]->text();
             }
 
-            $data['QtdBanheiros'] = 0; // Attr(Child): <Banheiro2>.
+            $data['QtdBanheiros'] = 0; 
             if ($imovel->has('Banheiro2')) {
                 $data['QtdBanheiros'] = $imovel->find('Banheiro2')[0]->text();
             }
 
-            $data['QtdVagas'] = 0; // Attr(Child): <Garagem>.
+            $data['QtdVagas'] = 0; 
             if ($imovel->has('Garagem')) {
                 $data['QtdVagas'] = $imovel->find('Garagem')[0]->text();
             }
 
             $data['Features'] = $this->getFeatures($imovel);
 
-            $data['UF'] = $imovel->find('UnidadeFederativa')[0]->text(); // Attr(Child): <UnidadeFederativa>. - No need Check.
+            $data['UF'] = $imovel->find('UnidadeFederativa')[0]->text(); 
             $data['Cidade'] = '';
             if ($imovel->has('Cidade')) {
-                $data['Cidade'] = $imovel->find('Cidade')[0]->text(); // Attr(Child): <Cidade>. - No need Check.
+                $data['Cidade'] = $imovel->find('Cidade')[0]->text(); 
             }
 
-            $data['Bairro'] = $imovel->find('Bairro')[0]->text(); // Attr(Child): <Bairro>. - No need Check.
+            $data['Bairro'] = $imovel->find('Bairro')[0]->text(); 
             $data['BairroComercial'] = NULL;
             $businessDistrict = $imovel->find('Bairrocomercial');
             if (count($businessDistrict)) {
-                $data['BairroComercial'] = $businessDistrict[0]->text(); // Attr(Child): <Bairrocomercial>. - No need Check.
+                $data['BairroComercial'] = $businessDistrict[0]->text(); 
             }
 
             $data['CEP'] = 0;
 
-            $cep = $imovel->find('CEP'); // Attr(Child): <CEP>. - No need Check.
+            $cep = $imovel->find('CEP'); 
             if (count($cep)) {
                 $data['CEP'] = $cep[0]->text();
             }
 
-            $data['Endereco'] = ''; // Attr(Child): <Endereco>.
+            $data['Endereco'] = ''; 
             if ($imovel->has('Endereco')) {
                 $data['Endereco'] = $imovel->find('Endereco')[0]->text();
             }
 
-            $data['Numero'] = NULL; // Attr(Child): <Numero>.
+            $data['Numero'] = NULL; 
             if ($imovel->has('Numero')) {
                 $data['Numero'] = $imovel->find('Numero')[0]->text();
             }
 
-            $data['Complemento'] = NULL; // Attr(Child): <Complemento>.
+            $data['Complemento'] = NULL; 
             if ($imovel->has('Complemento')) {
                 $data['Complemento'] = $imovel->find('Complemento')[0]->text();
             }
 
-            $data['Latitude'] = NULL; // Attr(Child): <Latitude>.
+            $data['Latitude'] = NULL; 
             if ($imovel->has('Latitude')) {
                 $data['Latitude'] = $imovel->find('Latitude')[0]->text();
             }
 
-            $data['Longitude'] = NULL; // Attr(Child): <Longitude>.
+            $data['Longitude'] = NULL; 
             if ($imovel->has('Longitude')) {
                 $data['Longitude'] = $imovel->find('Longitude')[0]->text();
             }
 
-            $data['Video'] = NULL; // Attr(Child): <video>.
+            $data['Video'] = NULL; 
             $videos = $imovel->find('Videos');
             if (count($videos)) {
                 foreach ($videos[0]->children() as $video) {
                     if ($video->has('LinkVideo')) {
                         $data['Video'] = $video->find('LinkVideo')[0]->text();
-                        break;  // Só precisamos de um vídeo.
+                        break;  
                     }
                 }
             }
@@ -297,7 +297,7 @@ class UnionModel extends XMLBaseParser {
                             ++$imagesCounter;
                         }
 
-                        if ($imagesCounter == 20) { // Quantidade máxima de imagens.
+                        if ($imagesCounter == 20) { 
                             break;
                         }
                     }
@@ -307,156 +307,156 @@ class UnionModel extends XMLBaseParser {
         }
     }
 
-    // Método abstrato que toda classe de XML terá.
-    // Função: Analisa e prepara os dados extraídos que serão inseridos no banco de dados.
+    
+    
     protected function prepareXmlData() : Void {
         foreach ($this->data as $key => $imovel) {
-            // Analisando código do imóvel.
+            
             $imovel['CodigoImovel'] = trim($imovel['CodigoImovel']);
             $this->imovelCode = $imovel['CodigoImovel'];
 
-            // Analisando tipo do imóvel.
+            
             $imovelTypeAndName = $this->parserImovelType($imovel['TipoImovel']);
             $imovel['TipoImovel'] = $imovelTypeAndName['TipoImovel'];
             $imovel['NomeImovel'] = $imovelTypeAndName['NomeImovel'];
 
-            // Analisando descrição do imóvel.
+            
             $imovel['Descricao'] = $this->parserDescription($imovel['Descricao']);
 
-            // Analisando subtitle do imóvel pois alguns titulos vem com caracteres especiais e com emojis.
+            
             if ($imovel['Subtitle']) {
                 $imovel['Subtitle'] = $this->parserDescription($imovel['Subtitle']);
             }
 
-            // Analisando preço de venda e convertendo-o a inteiro.
+            
             if ($imovel['PrecoVenda']) {
                 $imovel['PrecoVenda'] = convertToNumber($imovel['PrecoVenda']);
             }
 
-            // Analisando preço de locação.
+            
             if ($imovel['PrecoLocacao']) {
                 $imovel['PrecoLocacao'] = convertToNumber($imovel['PrecoLocacao']);
             }
 
-            // Analisando preço de temporada e convertendo-o a inteiro.
+            
             if ($imovel['PrecoTemporada']) {
                 $imovel['PrecoTemporada'] = convertToNumber($imovel['PrecoTemporada']);
             }
 
-            // ValorIPTU não precisa de nenhuma análise no momento.
-            // PrecoCondominio não precisa de nenhuma análise no momento.
+            
+            
 
-            // Analisando TipoOferta. - Não há necessidade.
-            //$imovel['TipoOferta'] = $this->parserOfferType($imovel['TipoOferta'], $imovel['PrecoLocacao'], $imovel['PrecoTemporada']);
+            
+            
 
-            // Analisando GarantiaAluguel.
+            
             if ($imovel['GarantiaAluguel']) {
                 $imovel['GarantiaAluguel'] = $this->parserGuarantee($imovel['GarantiaAluguel']);
             }
 
-            // Permuta não precisa de nenhuma análise no modelo imóvel guide.
-            // Construtora não precisa de nenhuma análise no modelo imóvel guide.
-            // Torres não precisa de nenhuma análise no modelo imóvel guide.
-            // Andares não precisa de nenhuma análise no modelo imóvel guide.
-            // UnidadesAndar não precisa de nenhuma análise no modelo imóvel guide.
+            
+            
+            
+            
+            
 
-            // Analisando Status do imóvel.
+            
             if ($imovel['Novo']) {
                 $imovel['Novo'] = $this->parserStatus($imovel['Novo']);
             }
 
-            // AnoConstrucao não precisa de nenhuma análise no modelo imóvel guide.
+            
 
-            // Analisando AreaUtil.
+            
             if ($imovel['AreaUtil']) {
                 $imovel['AreaUtil'] = $this->parserAreaUtil($imovel['AreaUtil']);
             }
 
-            // Analisando AreaConstruida.
+            
             if ($imovel['AreaConstruida']) {
                 $imovel['AreaConstruida'] = $this->parserAreaConstruida($imovel['AreaConstruida']);
             }
 
-            // Analisando AreaTotal.
+            
             if ($imovel['AreaTotal']) {
                 $imovel['AreaTotal'] = $this->parserAreaTotal($imovel['AreaTotal']);
             }
 
-            // Analisando AreaTerreno.
+            
             if ($imovel['AreaTerreno']) {
                 $imovel['AreaTerreno'] = $this->parserAreaTerreno($imovel['AreaTerreno']);
             }
 
-            // AreaTerreno não precisa de nenhuma análise no modelo imóvel guide.
-            // AreaConstruida não precisa de nenhuma análise no modelo imóvel guide.
-            // QtdDormitorios não precisa de nenhuma análise no modelo imóvel guide.
-            // QtdSuites não precisa de nenhuma análise no modelo imóvel guide.
-            // QtdBanheiros não precisa de nenhuma análise no modelo imóvel guide.
-            // QtdVagas não precisa de nenhuma análise no modelo imóvel guide.
+            
+            
+            
+            
+            
+            
 
-            // Analisando as features.
+            
             if (count($imovel['Features'])) {
                 $imovel['Features'] = $this->parserFeatures($imovel['Features']);
             }
 
-            // MostrarEndereco não precisa de nenhuma análise no modelo imóvel guide.
+            
 
-            // Analisando as features.
-            if ($imovel['UF'] && mb_strlen($imovel['UF']) > 2) { // Cidade.
+            
+            if ($imovel['UF'] && mb_strlen($imovel['UF']) > 2) { 
                 $imovel['UF'] = $this->parserUF($imovel['UF']);
             }
 
-            // Analisando string da cidade.
+            
             $imovel['Cidade'] = unicode_conversor($imovel['Cidade']);
 
-            // Analisando string do bairro.
+            
             $imovel['Bairro'] = unicode_conversor($imovel['Bairro']);
             
-            // BairroComercial não precisa de nenhuma análise no modelo imóvel guide.
             
-            // Analisando CEP.
+            
+            
             $imovel['CEP'] = $this->parserCEP($imovel['CEP']);
 
-            // Analisando string do bairro.
+            
             if ($imovel['Endereco']) {
                 $imovel['Endereco'] = str_replace(',', '', $imovel['Endereco']);
             }
 
-            // Numero não precisa de nenhuma análise no modelo imóvel guide.
-            // Complemento não precisa de nenhuma análise no modelo imóvel guide.
-            // Latitude não precisa de nenhuma análise no modelo imóvel guide.
-            // Longitude não precisa de nenhuma análise no modelo imóvel guide.
-            // Spotlight não precisa de nenhuma análise no modelo imóvel guide.
-            // Analisando string do area total.
+            
+            
+            
+            
+            
+            
 
-            // Video não precisa de nenhuma análise no modelo imóvel guide.
+            
 
-            // Analisando string do imagens.
-            if (count($imovel['images'])) { // Caso seja 0 por padrão, na hora da extração de dados, significa que não tem nada, então é null pra ser inserido na DB.
+            
+            if (count($imovel['images'])) { 
                 $imovel['images'] = $this->parserImageUrl($imovel['images']);
             }
 
-            // Inserindo no imóvel o title to imóvel.
+            
             $imovelTitleAndSlug = $this->parserImovelTitleAndSlug($imovel);
             $imovel['ImovelTitle'] = $imovelTitleAndSlug['ImovelTitle'];
             $imovel['ImovelSlug'] = $imovelTitleAndSlug['ImovelSlug'];
 
-            // Analisando link do youtube do imóvel. Verifica se é um link válido e direto pro youtube não permitindo outros links que não seja de vídeo pro youtube!
+            
             if ($imovel['Video']) {
                 $imovel['Video'] = $this->parserYoutubeVideo($imovel['Video']);
             }
 
-            // Analisando o valor do metro quadrado do imóvel.
+            
             $imovel['valor_m2'] = $this->parserValorM2($imovel['PrecoVenda'], $imovel['AreaUtil']);
 
-            // Analisando id de negociação.
+            
             $imovel['NegotiationId'] = $this->parserNegotiation($imovel);
 
-            // Criando slugs do endereço(Cidade e Bairro).
+            
             $imovel['CidadeSlug'] = Str::slug($imovel['Cidade']);
             $imovel['BairroSlug'] = Str::slug($imovel['Bairro']);
 
-            // Fim de acordo com o modelo inglês(imovel guide e alguns outros que apenas segue o mesmo padrão) do jogão, o IntegrationService::imovelDataIngles.
+            
             $this->data[$key] = $imovel;
         }
 
@@ -514,52 +514,52 @@ class UnionModel extends XMLBaseParser {
 
     private function getFeatures($imovel) : Array {
         $features = [];
-        // Não tem metrô nas caracteristicas. - Não tem,só em descrição.
+        
         $features['Piscina'] = $imovel->find('Piscina');
         $features['Ar Condicionado'] = $imovel->find('Arcondicionado');
-        // Não tem Área verde nas caracteristicas. - Não tem,só em descrição.
+        
         $features['Sacada'] = $imovel->find('Sacada');
         $features['Depósito'] = $imovel->find('Deposito');
-        // Não tem segurança 24h nas caracteristicas. - Não tem, só na descrição.
+        
         $features['Churrasqueira'] = $imovel->find('Churrasqueira');
         $features['Elevador'] = $imovel->find('Elevador');
         $features['Academia'] = $imovel->find('EmpreAcademia');
         $features['Salão de Festa'] = $imovel->find('Salafesta');
         $features['Playground'] = $imovel->find('Playground');
-        // Não tem Piscina para Adulto Aberta nas caracteristicas. - Não tem.
+        
         $features['Quadra Poliesportiva'] = $imovel->find('Quadrapoliesportiva');
         $features['Banheiro para Empregada'] = $imovel->find('Banheiroempregada');
         $features['Dormitório para Empregada'] = $imovel->find('Dormitoriosempregada');
         $features['Varanda Gourmet'] = $imovel->find('Varandagourmet');
         $features['Varanda'] = $imovel->find('Varanda');
-        // Não tem Varanda Grill nas caracteristicas. - Não tem.
+        
         $features['Armário de Cozinha Planejado'] = $imovel->find('Armariocozinha');
         $features['Armário do Quarto Planejado'] = $imovel->find('Armariodormitorio');
-        // Não tem Varanda Técnica nas caracteristicas. - Não tem.
-        // Não tem Piscina para Adulto Coberta nas caracteristicas. - Não tem.
+        
+        
         $features['Piscina Infantil Aberta'] = $imovel->find('Piscinainfantil');
-        // Não tem Piscina Infantil Coberta nas caracteristicas. - Não tem.
-        // Quadra de Tênis - Não tem.
+        
+        
         $features['Quadra de Squash'] = $imovel->find('Quadrasquash');
         $features['Campo de Futebol'] = $imovel->find('Campofutebol');
-        // Campo de Golfe - Não tem.
+        
         $features['Salão de Jogos'] = $imovel->find('Salajogos');
-        // Espaço Pet - Não tem.
-        // Sauna Seca - Não tem.
+        
+        
         $features['Sauna Úmida'] = $imovel->find('Sauna');
         $features['Brinquedoteca'] = $imovel->find('Brinquedoteca');
-        // Estacionamento para Visitas - Não tem.
+        
         $features['Frente para o Mar'] = $imovel->find('Frentemar');
         $features['Vista para o Mar'] = $imovel->find('Vistamar');
-        // Sala de Massagem
-        // Forno de Pizza - Não tem.
-        // Portaria Blindada - Não tem.
+        
+        
+        
         $features['Bicicletário'] = $imovel->find('Biciletario');
-        // Lava-jato
+        
         $features['Gerador'] = $imovel->find('Gerador');
         $features['Portaria 24h'] = $imovel->find('Portaria24horas');
         $features['Gás Encanado'] = $imovel->find('Gas');
-        // Depósito Individual - Não tem.
+        
 
         return $features;
     }
@@ -580,46 +580,46 @@ class UnionModel extends XMLBaseParser {
     }
 
     protected function parserOfferType(String $offerType, $precoLocacao, $precoTemporada) : Int {
-        /*$offerType = strtolower(trim(preg_replace('/(\v|\s)+/', ' ', $offerType)));
-        // Primeiro verifico a igualdade, para definir o tipo certo da oferta.
-        if (in_array($offerType, ['sell', 'sale'])) { // Venda.
-            return 1;
-        } elseif($offerType == 'season') { // Temporada.
-            return 4;
-        } elseif ($offerType == 'rent') { // Aluguel.
-            // TODO: Mover esse if e outros pra uma função pra ter uma legibilidade melhor.
-            if ($precoLocacao > 0 && $precoTemporada > 0) {
-                return 7;
-            } else if($precoTemporada > 0) {
-                return 4;
-            } else {
-                return 2;
-            }
-        } elseif ((str_contains($offerType, 'sell') || str_contains($offerType, 'sale')) && str_contains($offerType, 'rent')) {
-            // TODO: Aqui também, mesmo do de cima.
-            if ($precoLocacao > 0 && $precoTemporada > 0) {
-                return 5;
-            } else if($precoTemporada > 0) {
-                return 6;
-            } else {
-                return 3;
-            }
-        } elseif ((str_contains($offerType, 'sell') || str_contains($offerType, 'sale')) && str_contains($offerType, 'rent') && str_contains($offerType, 'season')) {
-            return 5;
-        } elseif ((str_contains($offerType, 'sell') || str_contains($offerType, 'sale')) && str_contains($offerType, 'season')) {
-            return 6;
-        } elseif (str_contains($offerType, 'rent') && str_contains($offerType, 'season')) {
-            return 7;
-        } else {
-            $this->toLog[] = "TipoOferta não identificada, o imóvel não foi inserido. Tipo de Oferta no XML: \"$offerType\" - trimed(com regex): \"$offerType\" - CodigoImovel(no XML) do Imóvel: {$this->imovelCode}.";
-            return -1; // To skip later.
-        }*/
+        
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     }
 
     protected function parserDescription(String $description) : String {
         $cleanedDescription = remove_emoji($description);
 
-	    $cleanedDescription = trim($cleanedDescription); // Remove espaços em brancos do inicio e do fim da string.
+	    $cleanedDescription = trim($cleanedDescription); 
 	    if (!preg_match('//u', $cleanedDescription)) {
 		    $cleanedDescription = utf8_encode($cleanedDescription);
 	    }
@@ -730,32 +730,32 @@ class UnionModel extends XMLBaseParser {
         $toDownload = [];
         foreach ($images as $url) {
             $bckpUrl = $url;
-            $url = trim(preg_replace('/\s\s+/', '', $url)); // Remove espaços em brancos a mais deixando apenas um a cada palavra.
+            $url = trim(preg_replace('/\s\s+/', '', $url)); 
             $url = filter_var($url, FILTER_SANITIZE_URL);
             if (!($url = filter_var($url, FILTER_VALIDATE_URL))) {
                 $this->adsIMGNFound[] = $this->imovelCode;
                 continue;
             }
 
-            // $imageInfo = $this->getImageInfo($url);
-            // dd($url, $this->data[0], $imageInfo);
-            // if (!$imageInfo) {
-            //     $this->toLog[] = "Não foi possível acessar a URL. URL no XML: \"$bckpUrl\" - CodigoImovel(no XML) do Imóvel: \"{$this->imovelCode}\".";
-		    //     array_splice($images, $key, 1);
-            //     continue;
-            // }
-            // if (strpos($imageInfo['content-type'], 'image/jpeg') === false || strpos($imageInfo['content-type'], 'image/jpg') === false) {
-            //     $this->toLog[] = "A URL não contém uma imagem. URL no XML: \"$bckpUrl\" - CodigoImovel(no XML) do Imóvel: \"{$this->imovelCode}\".";
-		    //     array_splice($images, $key, 1);
-            //     continue;
-            // }
+            
+            
+            
+            
+		    
+            
+            
+            
+            
+		    
+            
+            
 
-            // $imageSize = $imageInfo['content-length'];
-            // if (!is_numeric($imageSize) || (intval($imageSize) > $this->MAX_IMAGE_SIZE)) {
-            //     $this->toLog[] = "A imagem é maior que ".$this->getMaxImgSize()." MB. Ela não será baixada, contate o dono(a) do XML. URL no XML: \"$bckpUrl\" - CodigoImovel(no XML) do Imóvel: \"{$this->imovelCode}\".";
-            //     array_splice($images, $key, 1);
-            //     continue;
-            // }
+            
+            
+            
+            
+            
+            
 
             $toDownload[] = $url;
         }
@@ -879,12 +879,12 @@ class UnionModel extends XMLBaseParser {
         return NULL;
     }
 
-    // Insert xml data.
+    
     protected function insertXmlData() : Void {
         $user_id = $this->integration->user->id;
         $userAnuncios = Anuncio::with(['endereco', 'condominiumData', 'anuncioBeneficio', 'gallery'])
         ->where('user_id', $user_id)
-        ->where('xml', 1) // TODO: Add pra constante pra identificar melhor.
+        ->where('xml', 1) 
         ->orderBy('id', 'ASC')
         ->get();
 
@@ -968,17 +968,17 @@ class UnionModel extends XMLBaseParser {
 
             $imovelId = 0;
             $existingImovel = $userAnuncios->whereStrict('codigo', $imovel['CodigoImovel'])->last();
-            if ($existingImovel) { // Verificando se o imóvel existe.
+            if ($existingImovel) { 
                 if ($existingImovel->status === 'inativado') {
                     continue;
                 }
-                if ($this->isDifferentImovel($existingImovel, $newAnuncioInfo)) { // Caso exista, verificamos se o imóvel precisa ser atualizado ou não.
+                if ($this->isDifferentImovel($existingImovel, $newAnuncioInfo)) { 
                     $newAnuncioInfo['updated_at'] = Carbon::now('America/Sao_Paulo');
                     $existingImovel->update($newAnuncioInfo);
                 }
 
                 $imovelId = $existingImovel->id;
-            } else { // Caso não exista, inserimos ele do zero.
+            } else { 
                 $newAnuncioInfo['created_at'] = Carbon::now('America/Sao_Paulo');
                 $newAnuncio = Anuncio::create($newAnuncioInfo);
                 $isNewAnuncio = true;
@@ -1105,12 +1105,12 @@ class UnionModel extends XMLBaseParser {
                                     );
                                     $fileData = file_get_contents($url, false, $context);
 
-                                    // Salvar imagem original no S3
+                                    
                                     $imageObject = Image::make($fileData);
                                     $originalData = $imageObject->encode('webp', 85)->getEncoded();
                                     Storage::disk('do_spaces')->put($s3Path, $originalData, 'public');
 
-                                    // Também salvar localmente (temporário)
+                                    
                                     $basePath = public_path("images/$imageFileName");
                                     $imageObject->save($basePath);
 
@@ -1141,15 +1141,15 @@ class UnionModel extends XMLBaseParser {
                     $toDownload = [];
                     $toCompare = [];
 
-                    // Verifica se as imagens dentro da XML já foram inseridas no banco de dados.
+                    
                     foreach ($imovel['images'] as $key => $url) {
                         $imageFileName = 'integration/' . md5($user_id . $imovelId . basename($url)) . '.webp';
-                        // Sempre fazer download das imagens para migração S3
-                        // $hasImage = $oldImages->where('name', $imageFileName)->first();
+                        
+                        
                         $toCompare[] = $imageFileName;
-                        // if (!$hasImage) {
+                        
                             $toDownload[] = ['url' => $url, 'imageFileName' => $imageFileName];
-                        // }
+                        
                     }
 
                     if (count($toDownload)) {
@@ -1176,12 +1176,12 @@ class UnionModel extends XMLBaseParser {
                                     );
                                     $fileData = file_get_contents($url, false, $context);
 
-                                    // Salvar imagem original no S3
+                                    
                                     $imageObject = Image::make($fileData);
                                     $originalData = $imageObject->encode('webp', 85)->getEncoded();
                                     Storage::disk('do_spaces')->put($s3Path, $originalData, 'public');
 
-                                    // Também salvar localmente (temporário)
+                                    
                                     $basePath = public_path("images/$imageFileName");
                                     $imageObject->save($basePath);
 
@@ -1223,13 +1223,13 @@ class UnionModel extends XMLBaseParser {
             'last_integration' => Carbon::now()->toDateTimeString()
         ];
 
-        /* if (!$this->integration->first_integration) {
-            $integrationInfo['first_integration'] = Carbon::now()->toDateTimeString();
+        
 
-            $invite = new InviteService;
-            $invite->givePointsForParentUser($user_id, 1, $this->imoveisCount);  
-            $this->sendEmail($user_id);
-        } */
+
+
+
+
+
 
         $this->integration->update($integrationInfo);
         if ($this->canUpdateIntegrationStatus()) {

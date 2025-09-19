@@ -59,7 +59,7 @@ class IntegrationSystemManager extends Command
             $this->clearScreen();
             $this->displaySystemStatus();
             
-            // Verificar e corrigir problemas automaticamente
+            
             $this->autoFixIssues();
             
             sleep($interval);
@@ -102,13 +102,13 @@ class IntegrationSystemManager extends Command
 
         $this->info('🔄 Reiniciando sistema de integrações...');
         
-        // Parar workers
+        
         $this->stopWorkers();
         
-        // Limpar filas problemáticas
+        
         $this->clearProblematicJobs();
         
-        // Reiniciar workers
+        
         $this->startWorkers();
         
         $this->info('✅ Sistema reiniciado');
@@ -125,13 +125,13 @@ class IntegrationSystemManager extends Command
 
         $this->info('🧹 Limpando sistema de integrações...');
         
-        // Limpar jobs antigos
+        
         $this->clearOldJobs();
         
-        // Limpar logs antigos
+        
         $this->clearOldLogs();
         
-        // Resetar integrações travadas
+        
         $this->resetStuckIntegrations();
         
         $this->info('✅ Sistema limpo');
@@ -143,16 +143,16 @@ class IntegrationSystemManager extends Command
         $this->line('📊 STATUS DO SISTEMA DE INTEGRAÇÕES');
         $this->line('═══════════════════════════════════════════════');
         
-        // Status dos workers
+        
         $this->displayWorkerStatus();
         
-        // Status das filas
+        
         $this->displayQueueStatus();
         
-        // Status das integrações
+        
         $this->displayIntegrationStatus();
         
-        // Problemas detectados
+        
         $this->displayIssues();
         
         $this->line('═══════════════════════════════════════════════');
@@ -240,7 +240,7 @@ class IntegrationSystemManager extends Command
     {
         $issues = [];
         
-        // Verificar workers parados
+        
         try {
             $output = Process::run('sudo supervisorctl status integration-worker:*')->output();
             if (strpos($output, 'STOPPED') !== false) {
@@ -250,7 +250,7 @@ class IntegrationSystemManager extends Command
             $issues[] = 'Erro ao verificar workers';
         }
         
-        // Verificar jobs travados
+        
         $stuckJobs = IntegrationsQueues::where('status', IntegrationsQueues::STATUS_IN_PROCESS)
             ->where('started_at', '<', now()->subHours(2))
             ->count();
@@ -259,7 +259,7 @@ class IntegrationSystemManager extends Command
             $issues[] = "{$stuckJobs} jobs travados";
         }
         
-        // Verificar fila muito grande
+        
         $queueSize = DB::table('jobs')->whereIn('queue', [
             'priority-integrations', 'level-integrations', 'normal-integrations'
         ])->count();
@@ -319,11 +319,11 @@ class IntegrationSystemManager extends Command
 
     private function clearProblematicJobs(): void
     {
-        // Limpar jobs antigos da fila Redis
+        
         $deleted = DB::table('jobs')->where('created_at', '<', now()->subHours(24))->delete();
         $this->line("   ✅ {$deleted} jobs antigos removidos");
         
-        // Resetar integrações travadas
+        
         $this->resetStuckIntegrations();
     }
 
@@ -348,11 +348,11 @@ class IntegrationSystemManager extends Command
 
     private function clearOldJobs(): void
     {
-        // Limpar jobs antigos
+        
         $deleted = DB::table('jobs')->where('created_at', '<', now()->subDays(7))->delete();
         $this->line("   ✅ {$deleted} jobs antigos removidos");
         
-        // Limpar integrações antigas
+        
         $deleted = IntegrationsQueues::where('status', IntegrationsQueues::STATUS_DONE)
             ->where('completed_at', '<', now()->subDays(30))
             ->delete();
@@ -361,7 +361,7 @@ class IntegrationSystemManager extends Command
 
     private function clearOldLogs(): void
     {
-        // Limpar logs antigos (implementar conforme necessário)
+        
         $this->line('   ✅ Logs antigos limpos');
     }
 

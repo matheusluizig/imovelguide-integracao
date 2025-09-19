@@ -2,10 +2,10 @@
 
 namespace App\Integracao\Application\Controllers;
 
-// Services.
+
 use App\Integracao\Application\Services\IntegrationValidationService;
 use App\Integracao\Application\Services\IntegrationManagementService;
-// Support.
+
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
@@ -13,10 +13,10 @@ use App\User;
 use App\Crm;
 use Auth;
 use Session;
-// Models.
+
 use App\Integracao\Domain\Entities\IntegrationsQueues;
 use App\Integracao\Domain\Entities\Integracao;
-// Jobs.
+
 use App\Integracao\Application\Jobs\ProcessIntegrationJob;
 
 class XMLIntegrationController extends Controller
@@ -61,14 +61,14 @@ class XMLIntegrationController extends Controller
         $parsedUrl = preg_replace('/\s*/m', '', $request->url);
         $user = Auth::user();
 
-        // Caso especial: remover XML
+        
         if (empty($parsedUrl)) {
             DB::table('integracao_xml')->where('user_id', $user->id)->delete();
             Session::put('Sucesso', "Seu Arquivo XML foi apagado com sucesso! Fique tranquilo, todos seus imóveis foram salvos em nosso portal.");
             return redirect()->back();
         }
 
-        // NOVA VALIDAÇÃO: Validar XML antes de criar registro
+        
         $validationResult = $this->validationService->validateIntegration($parsedUrl);
 
         if (!$validationResult->isValid()) {
@@ -77,7 +77,7 @@ class XMLIntegrationController extends Controller
             return redirect()->back();
         }
 
-        // Criar integração usando o novo serviço
+        
         $integrationResult = $this->managementService->createIntegration([
             'user_id' => $user->id,
             'url' => $parsedUrl,
@@ -102,14 +102,14 @@ class XMLIntegrationController extends Controller
 
         $parsedUrl = preg_replace('/\s*/m', '', $request->url);
 
-        // Caso especial: remover XML
+        
         if (empty($parsedUrl)) {
             DB::table('integracao_xml')->where('user_id', $user->id)->delete();
             Session::put('Sucesso', "Arquivo XML foi apagado com sucesso!");
             return redirect()->back();
         }
 
-        // NOVA VALIDAÇÃO: Validar XML antes de criar registro
+        
         $validationResult = $this->validationService->validateIntegration($parsedUrl);
 
         if (!$validationResult->isValid()) {
@@ -118,7 +118,7 @@ class XMLIntegrationController extends Controller
             return redirect()->back();
         }
 
-        // Validar CRM se fornecido
+        
         $crmId = null;
         if (!empty($request->crmInput)) {
             $crm = Crm::where('crm_name', '=', $request->crmInput)->first();
@@ -130,7 +130,7 @@ class XMLIntegrationController extends Controller
             }
         }
 
-        // Criar integração usando o novo serviço
+        
         $integrationResult = $this->managementService->createIntegration([
             'user_id' => $user->id,
             'url' => $parsedUrl,
@@ -249,7 +249,7 @@ class XMLIntegrationController extends Controller
         return response()->json(['result' => $result]);
     }
 
-    // NOVOS MÉTODOS PARA VISÃO GERAL DA FILA
+    
     public function getQueueOverview() {
         $overview = $this->managementService->getQueueOverview();
         return response()->json([

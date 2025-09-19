@@ -80,7 +80,7 @@ class IntegrationProcessingService
             throw new Exception("Integration link is empty for integration {$integration->id}");
         }
 
-        // Limpar espaços extras da URL
+        
         $cleanUrl = trim($integration->link);
         if ($cleanUrl !== $integration->link) {
             Log::warning("URL had extra spaces, cleaning", [
@@ -101,7 +101,7 @@ class IntegrationProcessingService
     {
         $cacheKey = "xml_content_{$integration->id}_" . md5($integration->link);
 
-        // Tentar buscar do cache com fallback
+        
         try {
             $cachedContent = Cache::get($cacheKey);
             if ($cachedContent) {
@@ -116,7 +116,7 @@ class IntegrationProcessingService
         }
 
         $maxRetries = 3;
-        $retryDelay = 2000; // 2 segundos
+        $retryDelay = 2000; 
 
         for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
             try {
@@ -126,8 +126,8 @@ class IntegrationProcessingService
                     'attempt' => $attempt
                 ]);
 
-                $response = Http::timeout(600) // 10 minutos para download de XML
-                    ->retry(2, 2000) // 2 tentativas com 2 segundos de delay
+                $response = Http::timeout(600) 
+                    ->retry(2, 2000) 
                     ->withHeaders([
                         'User-Agent' => 'ImovelGuide-Integration/1.0',
                         'Accept' => 'application/xml, text/xml, */*',
@@ -135,7 +135,7 @@ class IntegrationProcessingService
                         'Cache-Control' => 'no-cache'
                     ])
                     ->withOptions([
-                        'verify' => false, // Para URLs com SSL problemático
+                        'verify' => false, 
                         'allow_redirects' => true,
                         'max_redirects' => 5
                     ])
@@ -144,7 +144,7 @@ class IntegrationProcessingService
                 if (!$response->successful()) {
                     $errorMsg = "HTTP error {$response->status()}: {$response->body()}";
 
-                    // Se for erro 4xx, não tentar novamente
+                    
                     if ($response->status() >= 400 && $response->status() < 500) {
                         $errorType = $response->status() === 404 ? 'URL not found' : 'Client error';
                         Log::error("Integration {$errorType} ({$response->status()})", [
@@ -156,9 +156,9 @@ class IntegrationProcessingService
                         throw new Exception("Request failed after 3 attempts: HTTP request returned status code {$response->status()}:\n" . substr($response->body(), 0, 500));
                     }
 
-                    // Se for erro 5xx, tentar novamente apenas se não for erro crítico
+                    
                     if ($response->status() >= 500 && $attempt < $maxRetries) {
-                        // Verificar se é um erro crítico que não deve ser retentado
+                        
                         $criticalErrors = ['Internal Server Error', 'Service Unavailable', 'Gateway Timeout'];
                         $isCriticalError = false;
 
@@ -204,7 +204,7 @@ class IntegrationProcessingService
                     throw new Exception("Empty XML content received from URL: {$integration->link}");
                 }
 
-                // Validar se é XML válido
+                
                 $previousUseInternalErrors = libxml_use_internal_errors(true);
                 $dom = new \DOMDocument();
                 $dom->loadXML($xmlContent);
@@ -218,7 +218,7 @@ class IntegrationProcessingService
                     ]);
                 }
 
-                // Tentar salvar no cache com fallback
+                
                 try {
                     Cache::put($cacheKey, $xmlContent, 3600);
                 } catch (\Exception $e) {
