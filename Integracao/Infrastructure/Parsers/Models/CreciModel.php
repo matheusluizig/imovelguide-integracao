@@ -2,7 +2,7 @@
 
 namespace App\Integracao\Infrastructure\Parsers\Models;
 
-// Support.
+
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
@@ -11,7 +11,7 @@ use Carbon\Carbon;
 use Storage;
 use Image;
 
-// Models.
+
 use App\User;
 use App\Imovel;
 use App\Bairro;
@@ -27,7 +27,7 @@ use App\AnuncioBeneficio;
 use App\Services\AnuncioService;
 use App\Integracao\Infrastructure\Parsers\Models\XMLBaseParser;
 
-// Services.
+
 use App\Services\InviteService;
 
 class CreciModel extends XMLBaseParser
@@ -38,40 +38,40 @@ class CreciModel extends XMLBaseParser
     $this->startIntegration();
   }
 
-  // Método abstrato que toda classe de XML terá.
-  // Função: Extrair dados de cada imóvel para ser inserido no banco de dados.
+  
+  
   protected function parserXml(): void
   {
     $imoveis = $this->getXml()->find('property');
     $this->imoveisCount = count($imoveis);
 
     foreach ($imoveis as $index => $imovel) {
-      /*
-            O index em $data é a própria coluna no banco de dados,
-            e comentado
-            $this->data['coluna'] = $imovel->child(0)->text();
-            */
+      
+
+
+
+
       $data = [];
-      $common_data = $imovel->find('common_data')[0]; // Attr(Node): <common_data>.
-      $data['CodigoImovel'] = $common_data->find('reference_code')[0]->text(); // Attr: <reference_code>.
+      $common_data = $imovel->find('common_data')[0]; 
+      $data['CodigoImovel'] = $common_data->find('reference_code')[0]->text(); 
       $data['Subtitle'] = null;
-      /*$subTitle = $imovel->find('Title'); // Attr: <Title>.
-            if (count($subTitle)) {
-                $data['Subtitle'] = $subTitle[0]->text();
-            }*/
+      
+
+
+
 
       $data['Descricao'] = '';
       if ($common_data->has('obs')) {
-        $data['Descricao'] = $common_data->find('obs')[0]->text(); // Attr: <obs>.
+        $data['Descricao'] = $common_data->find('obs')[0]->text(); 
       }
 
-      $purpose = $common_data->find('purpose')[0]; // Attr(Node): <purpose>.
-      // Rent/Sale
+      $purpose = $common_data->find('purpose')[0]; 
+      
       $rent = $purpose->find('sell_available');
       $sale = $purpose->find('rent_available');
-      $data['TipoOferta'] = $this->getOfferType($rent, $sale); // Attr(Child): <Temporada/Locacao/Venda>.
+      $data['TipoOferta'] = $this->getOfferType($rent, $sale); 
 
-      $data['PrecoVenda'] = 0; // Attr(Child): <sell_price>. Default.
+      $data['PrecoVenda'] = 0; 
       if ($purpose->has('sell_price')) {
         $data['PrecoVenda'] = $purpose->find('sell_price')[0]->text();
         if ($data['PrecoVenda'] == '') {
@@ -82,7 +82,7 @@ class CreciModel extends XMLBaseParser
         $data['PrecoVenda'] = 0;
       }
 
-      $data['PrecoLocacao'] = 0; // Attr(Child): <rent_price>. Default.
+      $data['PrecoLocacao'] = 0; 
       if ($purpose->has('rent_price')) {
         $data['PrecoLocacao'] = $purpose->find('rent_price')[0]->text();
         if ($data['PrecoLocacao'] == '') {
@@ -90,19 +90,19 @@ class CreciModel extends XMLBaseParser
         }
       }
 
-      $data['PrecoTemporada'] = null; // Attr(Child): <>. Default.
-      $data['Spotlight'] = 0; // Attr(Child):
-      $data['GarantiaAluguel'] = null; // Attr(Child):
-      $data['ValorIPTU'] = null; // Attr(Child):
-      $data['PrecoCondominio'] = null; // Attr(Child):
-      $data['Permuta'] = 0; // Attr(Child):
-      $data['Andares'] = null; // Attr(Child):
-      $data['UnidadesAndar'] = null; // Attr(Child):
-      $data['Torres'] = null; // Attr(Child):
-      $data['Construtora'] = 0; // Attr(Child):
-      $data['MostrarEndereco'] = 2; // Attr(Child): <>.
+      $data['PrecoTemporada'] = null; 
+      $data['Spotlight'] = 0; 
+      $data['GarantiaAluguel'] = null; 
+      $data['ValorIPTU'] = null; 
+      $data['PrecoCondominio'] = null; 
+      $data['Permuta'] = 0; 
+      $data['Andares'] = null; 
+      $data['UnidadesAndar'] = null; 
+      $data['Torres'] = null; 
+      $data['Construtora'] = 0; 
+      $data['MostrarEndereco'] = 2; 
 
-      $data['AreaTotal'] = null; // Attr(Child): <total_area>.
+      $data['AreaTotal'] = null; 
       if ($common_data->has('total_area')) {
         $data['AreaTotal'] = $common_data->find('total_area')[0]->text();
       }
@@ -110,11 +110,11 @@ class CreciModel extends XMLBaseParser
         $data['AreaTotal'] = null;
       }
 
-      $data['TipoImovel'] = $common_data->find('master_type')[0]->text(); // Attr(Child): <master_type>.
+      $data['TipoImovel'] = $common_data->find('master_type')[0]->text(); 
       $data['NomeImovel'] = '';
-      $data['Novo'] = null; // Attr(Child):
+      $data['Novo'] = null; 
 
-      $data['AreaUtil'] = 0; // Attr(Child): <useful_area>.
+      $data['AreaUtil'] = 0; 
       if ($common_data->has('useful_area')) {
         $data['AreaUtil'] = $common_data->find('useful_area')[0]->text();
       }
@@ -122,58 +122,58 @@ class CreciModel extends XMLBaseParser
         $data['AreaUtil'] = 0;
       }
 
-      $data['AreaTerreno'] = 0; // Attr(Child): <>.
-      $data['AreaConstruida'] = 0; // Attr(Child): <>.
+      $data['AreaTerreno'] = 0; 
+      $data['AreaConstruida'] = 0; 
 
-      $data['AnoConstrucao'] = 0; // Attr(Child):
+      $data['AnoConstrucao'] = 0; 
 
-      $composition = $imovel->find('composition')[0]; // Attr(Node): <composition>.
-      $data['QtdDormitorios'] = 0; // Attr(Child): <bedroom>.
+      $composition = $imovel->find('composition')[0]; 
+      $data['QtdDormitorios'] = 0; 
       if ($composition->has('bedroom')) {
         $data['QtdDormitorios'] = $composition->find('bedroom')[0]->text();
       }
 
-      $data['QtdSuites'] = null; // Attr(Child): <suite>.
+      $data['QtdSuites'] = null; 
       if ($composition->has('suite')) {
         $data['QtdSuites'] = $composition->find('suite')[0]->text();
       }
 
-      $data['QtdBanheiros'] = 0; // Attr(Child): <bathroom>.
+      $data['QtdBanheiros'] = 0; 
       if ($composition->has('bathroom')) {
         $data['QtdBanheiros'] = $composition->find('bathroom')[0]->text();
       }
 
-      $data['QtdVagas'] = 0; // Attr(Child): <vagancy>.
+      $data['QtdVagas'] = 0; 
       if ($composition->has('vagancy')) {
         $data['QtdVagas'] = $composition->find('vagancy')[0]->text();
       }
 
-      $data['Features'] = []; // Attr(Node):
+      $data['Features'] = []; 
 
-      $address = $common_data->find('address')[0]; // Attr(Node): <address>.
+      $address = $common_data->find('address')[0]; 
       $data['UF'] = null;
       $data['Cidade'] = '';
       if ($address->has('city')) {
-        $data['Cidade'] = $address->find('city')[0]->text(); // Attr(Child): <city>.
+        $data['Cidade'] = $address->find('city')[0]->text(); 
       }
 
-      $data['Bairro'] = $address->find('neighborhood')[0]->text(); // Attr(Child): <neighborhood>.
+      $data['Bairro'] = $address->find('neighborhood')[0]->text(); 
       $data['BairroComercial'] = null;
-      $businessDistrict = null; // Attr(Child):
+      $businessDistrict = null; 
 
       $data['CEP'] = 0;
 
-      $cep = $address->find('zipcode'); // Attr(Child): <zipcode>.
+      $cep = $address->find('zipcode'); 
       if (count($cep)) {
         $data['CEP'] = $cep[0]->text();
       }
 
-      $data['Endereco'] = ''; // Attr(Child):
-      $data['Numero'] = null; // Attr(Child):
-      $data['Complemento'] = null; // Attr(Child):
-      $data['Latitude'] = null; // Attr(Child):
-      $data['Longitude'] = null; // Attr(Child):
-      $data['Video'] = null; // Attr(Child):
+      $data['Endereco'] = ''; 
+      $data['Numero'] = null; 
+      $data['Complemento'] = null; 
+      $data['Latitude'] = null; 
+      $data['Longitude'] = null; 
+      $data['Video'] = null; 
 
       $data['images'] = [];
       $images = $imovel->find('photos');
@@ -187,7 +187,7 @@ class CreciModel extends XMLBaseParser
           }
 
           if ($imagesCounter == 20) {
-            // Quantidade máxima de imagens.
+            
             break;
           }
         }
@@ -197,159 +197,159 @@ class CreciModel extends XMLBaseParser
     }
   }
 
-  // Método abstrato que toda classe de XML terá.
-  // Função: Analisa e prepara os dados extraídos que serão inseridos no banco de dados.
+  
+  
   protected function prepareXmlData(): void
   {
     foreach ($this->data as $key => $imovel) {
-      // Analisando código do imóvel.
+      
       $imovel['CodigoImovel'] = trim($imovel['CodigoImovel']);
       $this->imovelCode = $imovel['CodigoImovel'];
 
-      // Analisando tipo do imóvel.
+      
       $imovelTypeAndName = $this->parserImovelType($imovel['TipoImovel']);
       $imovel['TipoImovel'] = $imovelTypeAndName['TipoImovel'];
       $imovel['NomeImovel'] = $imovelTypeAndName['NomeImovel'];
 
-      // Analisando descrição do imóvel.
+      
       $imovel['Descricao'] = $this->parserDescription($imovel['Descricao']);
 
-      // Analisando subtitle do imóvel pois alguns titulos vem com caracteres especiais e com emojis.
+      
       if ($imovel['Subtitle']) {
         $imovel['Subtitle'] = $this->parserDescription($imovel['Subtitle']);
       }
 
-      // Analisando preço de venda e convertendo-o a inteiro.
+      
       if ($imovel['PrecoVenda']) {
         $imovel['PrecoVenda'] = convertToNumber($imovel['PrecoVenda']);
       }
 
-      // Analisando preço de locação.
+      
       if ($imovel['PrecoLocacao']) {
         $imovel['PrecoLocacao'] = convertToNumber($imovel['PrecoLocacao']);
       }
 
-      // Analisando preço de temporada e convertendo-o a inteiro.
+      
       if ($imovel['PrecoTemporada']) {
         $imovel['PrecoTemporada'] = convertToNumber($imovel['PrecoTemporada']);
       }
 
-      // ValorIPTU não precisa de nenhuma análise no momento.
-      // PrecoCondominio não precisa de nenhuma análise no momento.
+      
+      
 
-      // Analisando TipoOferta. -- Não precisa.
-      //$imovel['TipoOferta'] = $this->parserOfferType($imovel['TipoOferta'], $imovel['PrecoLocacao'], $imovel['PrecoTemporada']);
+      
+      
 
-      // Analisando GarantiaAluguel.
+      
       if ($imovel['GarantiaAluguel']) {
         $imovel['GarantiaAluguel'] = $this->parserGuarantee($imovel['GarantiaAluguel']);
       }
 
-      // Permuta não precisa de nenhuma análise no modelo imóvel guide.
-      // Construtora não precisa de nenhuma análise no modelo imóvel guide.
-      // Torres não precisa de nenhuma análise no modelo imóvel guide.
-      // Andares não precisa de nenhuma análise no modelo imóvel guide.
-      // UnidadesAndar não precisa de nenhuma análise no modelo imóvel guide.
+      
+      
+      
+      
+      
 
-      // Analisando Status do imóvel.
+      
       if ($imovel['Novo']) {
         $imovel['Novo'] = $this->parserStatus($imovel['Novo']);
       }
 
-      // AnoConstrucao não precisa de nenhuma análise no modelo imóvel guide.
+      
 
-      // Analisando AreaUtil.
+      
       if ($imovel['AreaUtil']) {
         $imovel['AreaUtil'] = $this->parserAreaUtil($imovel['AreaUtil']);
       }
 
-      // Analisando AreaConstruida.
+      
       if ($imovel['AreaConstruida']) {
         $imovel['AreaConstruida'] = $this->parserAreaConstruida($imovel['AreaConstruida']);
       }
 
-      // Analisando AreaTotal.
+      
       if ($imovel['AreaTotal']) {
         $imovel['AreaTotal'] = $this->parserAreaTotal($imovel['AreaTotal']);
       }
 
-      // Analisando AreaTerreno.
+      
       if ($imovel['AreaTerreno']) {
         $imovel['AreaTerreno'] = $this->parserAreaTerreno($imovel['AreaTerreno']);
       }
 
-      // AreaTerreno não precisa de nenhuma análise no modelo imóvel guide.
-      // AreaConstruida não precisa de nenhuma análise no modelo imóvel guide.
-      // QtdDormitorios não precisa de nenhuma análise no modelo imóvel guide.
-      // QtdSuites não precisa de nenhuma análise no modelo imóvel guide.
-      // QtdBanheiros não precisa de nenhuma análise no modelo imóvel guide.
-      // QtdVagas não precisa de nenhuma análise no modelo imóvel guide.
+      
+      
+      
+      
+      
+      
 
-      // Analisando as features.
+      
       if (count($imovel['Features'])) {
         $imovel['Features'] = $this->parserFeatures($imovel['Features']);
       }
 
-      // MostrarEndereco não precisa de nenhuma análise no modelo imóvel guide.
+      
 
-      // Analisando as features.
+      
       if ($imovel['UF'] && mb_strlen($imovel['UF']) > 2) {
-        // Cidade.
+        
         $imovel['UF'] = $this->parserUF($imovel['UF']);
       }
 
-      // Analisando string da cidade.
+      
       $imovel['Cidade'] = unicode_conversor($imovel['Cidade']);
 
-      // Analisando string do bairro.
+      
       $imovel['Bairro'] = unicode_conversor($imovel['Bairro']);
 
-      // BairroComercial não precisa de nenhuma análise no modelo imóvel guide.
+      
 
-      // Analisando CEP.
+      
       $imovel['CEP'] = $this->parserCEP($imovel['CEP']);
 
-      // Analisando string do bairro.
+      
       if ($imovel['Endereco']) {
         $imovel['Endereco'] = str_replace(',', '', $imovel['Endereco']);
       }
 
-      // Numero não precisa de nenhuma análise no modelo imóvel guide.
-      // Complemento não precisa de nenhuma análise no modelo imóvel guide.
-      // Latitude não precisa de nenhuma análise no modelo imóvel guide.
-      // Longitude não precisa de nenhuma análise no modelo imóvel guide.
-      // Spotlight não precisa de nenhuma análise no modelo imóvel guide.
-      // Analisando string do area total.
+      
+      
+      
+      
+      
+      
 
-      // Video não precisa de nenhuma análise no modelo imóvel guide.
+      
 
-      // Analisando string do imagens.
+      
       if (count($imovel['images'])) {
-        // Caso seja 0 por padrão, na hora da extração de dados, significa que não tem nada, então é null pra ser inserido na DB.
+        
         $imovel['images'] = $this->parserImageUrl($imovel['images']);
       }
 
-      // Inserindo no imóvel o title to imóvel.
+      
       $imovelTitleAndSlug = $this->parserImovelTitleAndSlug($imovel);
       $imovel['ImovelTitle'] = $imovelTitleAndSlug['ImovelTitle'];
       $imovel['ImovelSlug'] = $imovelTitleAndSlug['ImovelSlug'];
 
-      // Analisando link do youtube do imóvel. Verifica se é um link válido e direto pro youtube não permitindo outros links que não seja de vídeo pro youtube!
+      
       if ($imovel['Video']) {
         $imovel['Video'] = $this->parserYoutubeVideo($imovel['Video']);
       }
 
-      // Analisando o valor do metro quadrado do imóvel.
+      
       $imovel['valor_m2'] = $this->parserValorM2($imovel['PrecoVenda'], $imovel['AreaUtil']);
 
-      // Analisando id de negociação.
+      
       $imovel['NegotiationId'] = $this->parserNegotiation($imovel);
 
-      // Criando slugs do endereço(Cidade e Bairro).
+      
       $imovel['CidadeSlug'] = Str::slug($imovel['Cidade']);
       $imovel['BairroSlug'] = Str::slug($imovel['Bairro']);
 
-      // Fim de acordo com o modelo inglês(imovel guide e alguns outros que apenas segue o mesmo padrão) do jogão, o IntegrationService::imovelDataIngles.
+      
       $this->data[$key] = $imovel;
     }
 
@@ -386,7 +386,7 @@ class CreciModel extends XMLBaseParser
       return 2;
     } else {
       $this->toLog[] = "TipoOferta não identificada, o imóvel não foi inserido. CodigoImovel(no XML) do Imóvel: {$this->imovelCode}.";
-      return -1; // To skip later.
+      return -1; 
     }
   }
 
@@ -410,17 +410,17 @@ class CreciModel extends XMLBaseParser
   {
     if ($offerType == 'none') {
       $this->toLog[] = "TipoOferta não identificada, o imóvel não foi inserido. Tipo de Oferta no XML: \"$offerType\" - trimed(com regex): \"$offerType\" - CodigoImovel(no XML) do Imóvel: {$this->imovelCode}.";
-      return -1; // To skip later.
+      return -1; 
     }
 
     $offerType = strtolower(trim(preg_replace('/(\v|\s)+/', ' ', $offerType)));
-    // Primeiro verifico a igualdade, para definir o tipo certo da oferta.
-    if (in_array($offerType, ['sell', 'sale'])) { // Venda.
+    
+    if (in_array($offerType, ['sell', 'sale'])) { 
       return 1;
-    } elseif($offerType == 'season') { // Temporada.
+    } elseif($offerType == 'season') { 
       return 4;
-    } elseif ($offerType == 'rent') { // Aluguel.
-      // TODO: Mover esse if e outros pra uma função pra ter uma legibilidade melhor.
+    } elseif ($offerType == 'rent') { 
+      
       if ($precoLocacao > 0 && $precoTemporada > 0) {
         return 7;
       } else if($precoTemporada > 0) {
@@ -429,7 +429,7 @@ class CreciModel extends XMLBaseParser
         return 2;
       }
     } elseif ((str_contains($offerType, 'sell') || str_contains($offerType, 'sale')) && str_contains($offerType, 'rent')) {
-      // TODO: Aqui também, mesmo do de cima.
+      
       if ($precoLocacao > 0 && $precoTemporada > 0) {
         return 5;
       } else if($precoTemporada > 0) {
@@ -445,7 +445,7 @@ class CreciModel extends XMLBaseParser
       return 7;
     } else {
       $this->toLog[] = "TipoOferta não identificada, o imóvel não foi inserido. Tipo de Oferta no XML: \"$offerType\" - trimed(com regex): \"$offerType\" - CodigoImovel(no XML) do Imóvel: {$this->imovelCode}.";
-      return -1; // To skip later.
+      return -1; 
     }
   }
 
@@ -453,7 +453,7 @@ class CreciModel extends XMLBaseParser
   {
     $cleanedDescription = remove_emoji($description);
 
-    $cleanedDescription = trim($cleanedDescription); // Remove espaços em brancos do inicio e do fim da string.
+    $cleanedDescription = trim($cleanedDescription); 
     if (!preg_match('//u', $cleanedDescription)) {
       $cleanedDescription = utf8_encode($cleanedDescription);
     }
@@ -569,32 +569,32 @@ class CreciModel extends XMLBaseParser
     $toDownload = [];
     foreach ($images as $url) {
       $bckpUrl = $url;
-      $url = trim(preg_replace('/\s\s+/', '', $url)); // Remove espaços em brancos a mais deixando apenas um a cada palavra.
+      $url = trim(preg_replace('/\s\s+/', '', $url)); 
       $url = filter_var($url, FILTER_SANITIZE_URL);
       if (!($url = filter_var($url, FILTER_VALIDATE_URL))) {
         $this->adsIMGNFound[] = $this->imovelCode;
         continue;
       }
 
-      // $imageInfo = $this->getImageInfo($url);
-      // dd($url, $this->data[0], $imageInfo);
-      // if (!$imageInfo) {
-      //     $this->toLog[] = "Não foi possível acessar a URL. URL no XML: \"$bckpUrl\" - CodigoImovel(no XML) do Imóvel: \"{$this->imovelCode}\".";
-      //     array_splice($images, $key, 1);
-      //     continue;
-      // }
-      // if (strpos($imageInfo['content-type'], 'image/jpeg') === false || strpos($imageInfo['content-type'], 'image/jpg') === false) {
-      //     $this->toLog[] = "A URL não contém uma imagem. URL no XML: \"$bckpUrl\" - CodigoImovel(no XML) do Imóvel: \"{$this->imovelCode}\".";
-      //     array_splice($images, $key, 1);
-      //     continue;
-      // }
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
 
-      // $imageSize = $imageInfo['content-length'];
-      // if (!is_numeric($imageSize) || (intval($imageSize) > $this->MAX_IMAGE_SIZE)) {
-      //     $this->toLog[] = "A imagem é maior que ".$this->getMaxImgSize()." MB. Ela não será baixada, contate o dono(a) do XML. URL no XML: \"$bckpUrl\" - CodigoImovel(no XML) do Imóvel: \"{$this->imovelCode}\".";
-      //     array_splice($images, $key, 1);
-      //     continue;
-      // }
+      
+      
+      
+      
+      
+      
 
       $toDownload[] = $url;
     }
@@ -727,13 +727,13 @@ class CreciModel extends XMLBaseParser
     return null;
   }
 
-  // Insert xml data.
+  
   protected function insertXmlData(): void
   {
     $user_id = $this->integration->user->id;
     $userAnuncios = Anuncio::with(['endereco', 'condominiumData', 'anuncioBeneficio', 'gallery'])
       ->where('user_id', $user_id)
-      ->where('xml', 1) // TODO: Add pra constante pra identificar melhor.
+      ->where('xml', 1) 
       ->orderBy('id', 'ASC')
       ->get();
 
@@ -820,19 +820,19 @@ class CreciModel extends XMLBaseParser
       $imovelId = 0;
       $existingImovel = $userAnuncios->whereStrict('codigo', $imovel['CodigoImovel'])->last();
       if ($existingImovel) {
-        // Verificando se o imóvel existe.
+        
         if ($existingImovel->status === 'inativado') {
           continue;
         }
         if ($this->isDifferentImovel($existingImovel, $newAnuncioInfo)) {
-          // Caso exista, verificamos se o imóvel precisa ser atualizado ou não.
+          
           $newAnuncioInfo['updated_at'] = Carbon::now('America/Sao_Paulo');
           $existingImovel->update($newAnuncioInfo);
         }
 
         $imovelId = $existingImovel->id;
       } else {
-        // Caso não exista, inserimos ele do zero.
+        
         $newAnuncioInfo['created_at'] = Carbon::now('America/Sao_Paulo');
         $newAnuncio = Anuncio::create($newAnuncioInfo);
         $isNewAnuncio = true;
@@ -961,12 +961,12 @@ class CreciModel extends XMLBaseParser
                   );
                   $fileData = file_get_contents($url, false, $context);
 
-                  // Salvar imagem original no S3
+                  
                   $imageObject = Image::make($fileData);
                   $originalData = $imageObject->encode('webp', 85)->getEncoded();
                   Storage::disk('do_spaces')->put($s3Path, $originalData, 'public');
 
-                  // Também salvar localmente (temporário)
+                  
                   $basePath = public_path("images/$imageFileName");
                   $imageObject->save($basePath);
 
@@ -1000,15 +1000,15 @@ class CreciModel extends XMLBaseParser
           $toDownload = [];
           $toCompare = [];
 
-          // Verifica se as imagens dentro da XML já foram inseridas no banco de dados.
+          
           foreach ($imovel['images'] as $key => $url) {
                 $imageFileName = 'integration/' . md5($user_id . $imovelId . basename($url)) . '.webp';
-            // Sempre fazer download das imagens para migração S3
-            // $hasImage = $oldImages->where('name', $imageFileName)->first();
+            
+            
             $toCompare[] = $imageFileName;
-            // if (!$hasImage) {
+            
               $toDownload[] = ['url' => $url, 'imageFileName' => $imageFileName];
-            // }
+            
           }
 
           if (count($toDownload)) {
@@ -1035,12 +1035,12 @@ class CreciModel extends XMLBaseParser
                   );
                   $fileData = file_get_contents($url, false, $context);
 
-                  // Salvar imagem original no S3
+                  
                   $imageObject = Image::make($fileData);
                   $originalData = $imageObject->encode('webp', 85)->getEncoded();
                   Storage::disk('do_spaces')->put($s3Path, $originalData, 'public');
 
-                  // Também salvar localmente (temporário)
+                  
                   $basePath = public_path("images/$imageFileName");
                   $imageObject->save($basePath);
 
@@ -1085,13 +1085,13 @@ class CreciModel extends XMLBaseParser
       'last_integration' => Carbon::now()->toDateTimeString(),
     ];
 
-    /* if (!$this->integration->first_integration) {
-            $integrationInfo['first_integration'] = Carbon::now()->toDateTimeString();
+    
 
-            $invite = new InviteService;
-            $invite->givePointsForParentUser($user_id, 1, $this->imoveisCount);  
-            $this->sendEmail($user_id);
-        } */
+
+
+
+
+
 
     $this->integration->update($integrationInfo);
     if ($this->canUpdateIntegrationStatus()) {

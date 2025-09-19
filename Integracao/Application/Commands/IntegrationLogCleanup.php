@@ -53,7 +53,7 @@ class IntegrationLogCleanup extends Command
                 $totalFiles, $totalSize, $deletedFiles, $compressedFiles);
         }
 
-        // Processar logs diários do Laravel que contenham integração
+        
         $this->processLaravelLogs($logPath, $cutoffDate, $dryRun, $compress, 
             $totalFiles, $totalSize, $deletedFiles, $compressedFiles);
 
@@ -70,12 +70,12 @@ class IntegrationLogCleanup extends Command
             $this->line("   Arquivos comprimidos: {$compressedFiles}");
         }
 
-        // Estatísticas de espaço liberado
+        
         if (!$dryRun && ($deletedFiles > 0 || $compressedFiles > 0)) {
             $this->newLine();
             $this->info("✅ Limpeza concluída com sucesso!");
             
-            // Verificar espaço em disco
+            
             $this->showDiskUsage($logPath);
         }
 
@@ -99,7 +99,7 @@ class IntegrationLogCleanup extends Command
         $totalSize += $fileSize;
 
         if ($fileTime->lt($cutoffDate)) {
-            if ($compress && $fileSize > 1024 * 1024) { // Comprimir se > 1MB
+            if ($compress && $fileSize > 1024 * 1024) { 
                 $this->compressLogFile($filePath, $dryRun);
                 $compressedFiles++;
                 $this->line("🗜️  Comprimido: {$logFile} (" . $this->formatBytes($fileSize) . ")");
@@ -125,7 +125,7 @@ class IntegrationLogCleanup extends Command
         foreach ($files as $file) {
             $fileName = basename($file);
             
-            // Verificar se o arquivo contém logs de integração
+            
             if ($this->containsIntegrationLogs($file)) {
                 $fileTime = Carbon::createFromTimestamp(File::lastModified($file));
                 $fileSize = File::size($file);
@@ -134,7 +134,7 @@ class IntegrationLogCleanup extends Command
                 $totalSize += $fileSize;
 
                 if ($fileTime->lt($cutoffDate)) {
-                    if ($compress && $fileSize > 1024 * 1024) { // Comprimir se > 1MB
+                    if ($compress && $fileSize > 1024 * 1024) { 
                         $this->compressLogFile($file, $dryRun);
                         $compressedFiles++;
                         $this->line("🗜️  Comprimido: {$fileName} (" . $this->formatBytes($fileSize) . ")");
@@ -171,7 +171,7 @@ class IntegrationLogCleanup extends Command
                 }
             }
         } catch (\Exception $e) {
-            // Se não conseguir ler o arquivo, assumir que não contém logs de integração
+            
         }
 
         return false;
@@ -186,7 +186,7 @@ class IntegrationLogCleanup extends Command
         try {
             $compressedPath = $filePath . '.gz';
             
-            // Comprimir o arquivo
+            
             $fp_out = gzopen($compressedPath, 'wb9');
             $fp_in = fopen($filePath, 'rb');
             
@@ -197,7 +197,7 @@ class IntegrationLogCleanup extends Command
             fclose($fp_in);
             gzclose($fp_out);
             
-            // Deletar o arquivo original
+            
             File::delete($filePath);
             
         } catch (\Exception $e) {

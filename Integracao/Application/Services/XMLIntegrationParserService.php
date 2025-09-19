@@ -30,33 +30,33 @@ class XMLIntegrationParserService
     return $this->factory->getProvider();
   }
 
-  /**
-   * Define a integração a ser processada
-   *
-   * @param Integracao $integration
-   * @return void
-   */
+  
+
+
+
+
+
   public function setIntegration(Integracao $integration): void
   {
     $this->integration = $integration;
   }
 
-  /**
-   * Define o serviço de logging
-   *
-   * @param XMLIntegrationLoggerService $service
-   * @return void
-   */
+  
+
+
+
+
+
   public function setLoggerService(XMLIntegrationLoggerService $service): void
   {
     $this->logger = $service;
   }
 
-  /**
-   * Verifica e parseia a integração
-   *
-   * @return bool
-   */
+  
+
+
+
+
   private function parseIntegration(): bool
   {
     if (!$this->integrationHasValidLink()) {
@@ -81,15 +81,15 @@ class XMLIntegrationParserService
     return true;
   }
 
-  /**
-   * Verifica se o XML pode ser parseado
-   *
-   * @return bool
-   */
+  
+
+
+
+
   private function canParseXml(): bool
   {
     if (!$this->parseIntegration()) {
-      return false; // Erro já foi registrado
+      return false; 
     }
 
     $this->factory->setIntegrationAndLoadXml($this->integration);
@@ -108,11 +108,11 @@ class XMLIntegrationParserService
     return true;
   }
 
-  /**
-   * Verifica se a integração tem um link válido
-   *
-   * @return bool
-   */
+  
+
+
+
+
   public function integrationHasValidLink(): bool
   {
     $link = IntegrationHelper::loadSafeLink($this->integration->link);
@@ -129,12 +129,12 @@ class XMLIntegrationParserService
     return $isValid;
   }
 
-  /**
-   * Verifica se o arquivo é um XML válido
-   *
-   * @param array $fileType
-   * @return bool
-   */
+  
+
+
+
+
+
   public function searchXmlInLink(array $fileType): bool
   {
     if (stripos($fileType[0], 'application/xml') === false && stripos($fileType[0], 'text/xml') === false) {
@@ -154,15 +154,15 @@ class XMLIntegrationParserService
     return true;
   }
 
-  /**
-   * Verifica se a integração possui um XML válido
-   *
-   * @return bool
-   */
+  
+
+
+
+
   public function integrationHasValidXml(): bool
   {
     $maxRetries = 3;
-    $retryDelay = 10; // Atraso inicial em segundos
+    $retryDelay = 10; 
 
     for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
       try {
@@ -185,7 +185,7 @@ class XMLIntegrationParserService
 
         if ($attempt < $maxRetries) {
           sleep($retryDelay);
-          $retryDelay *= 2; // Backoff exponencial
+          $retryDelay *= 2; 
           continue;
         }
 
@@ -208,25 +208,25 @@ class XMLIntegrationParserService
     return false;
   }
 
-  /**
-   * Realiza a requisição HTTP para obter o XML
-   *
-   * @return \Illuminate\Http\Client\Response|null
-   */
+  
+
+
+
+
   private function requestXml()
   {
     return Http::withUserAgent('ImovelGuide/1.0 (XML Integration Service; +https://imovelguide.com.br)')
-      ->timeout(600) // 10 minutos para processamento de XML
+      ->timeout(600) 
       ->get(IntegrationHelper::loadSafeLink($this->integration->link));
   }
 
-  /**
-   * Executa a integração completa
-   *
-   * @param Integracao $integration
-   * @param array $options
-   * @return bool
-   */
+  
+
+
+
+
+
+
   public function doIntegration(Integracao $integration, array $options = []): bool
   {
     try {
@@ -288,13 +288,13 @@ class XMLIntegrationParserService
     }
   }
 
-  /**
-   * Verifica se a integração pode ser executada
-   *
-   * @param Integracao $integration
-   * @param array $options
-   * @return bool
-   */
+  
+
+
+
+
+
+
   public function canDoIntegration(Integracao $integration, array $options = []): bool
   {
     $lastCheckIntegration = Integracao::with('queue')->where('id', $integration->id)->first();
@@ -308,12 +308,12 @@ class XMLIntegrationParserService
     return true;
   }
 
-  /**
-   * Verifica se a integração já está em progresso
-   *
-   * @param Integracao $integration
-   * @return bool
-   */
+  
+
+
+
+
+
   private function integrationIsInProgress(Integracao $integration): bool
   {
     if (
@@ -329,11 +329,11 @@ class XMLIntegrationParserService
     return false;
   }
 
-  /**
-   * Executa os passos da integração
-   *
-   * @return bool
-   */
+  
+
+
+
+
   private function executeIntegrationSteps(): bool
   {
     if (!$this->executeProviderParser()) {
@@ -351,11 +351,11 @@ class XMLIntegrationParserService
     return true;
   }
 
-  /**
-   * Executa o parser do provedor
-   *
-   * @return bool
-   */
+  
+
+
+
+
   private function executeProviderParser(): bool
   {
     try {
@@ -372,11 +372,11 @@ class XMLIntegrationParserService
     }
   }
 
-  /**
-   * Executa a preparação de dados do provedor
-   *
-   * @return bool
-   */
+  
+
+
+
+
   private function executeProviderPrepareData(): bool
   {
     try {
@@ -393,11 +393,11 @@ class XMLIntegrationParserService
     }
   }
 
-  /**
-   * Executa a inserção de dados do provedor
-   *
-   * @return bool
-   */
+  
+
+
+
+
   private function executeProviderInsertData(): bool
   {
     try {
@@ -414,30 +414,30 @@ class XMLIntegrationParserService
     }
   }
 
-  /**
-   * Remove registros relacionados a um anúncio
-   *
-   * @param \App\Anuncio $anuncio
-   * @return void
-   */
+  
+
+
+
+
+
   public function deleteRelatedRecords($anuncio): void
   {
-    // Deletar registros relacionados primeiro
+    
     DB::table('anuncio_images')->where('anuncio_id', $anuncio->id)->delete();
     DB::table('anuncio_beneficio')->where('anuncio_id', $anuncio->id)->delete();
     DB::table('anuncio_enderecos')->where('anuncio_id', $anuncio->id)->delete();
     DB::table('lista_corretores_da_construtora')->where('anuncio_id', $anuncio->id)->delete();
-    // Agora pode deletar o anúncio
+    
     $anuncio->delete();
   }
 
-  /**
-   * Registra um erro no canal de log do Discord
-   *
-   * @param string $message
-   * @param array $context
-   * @return void
-   */
+  
+
+
+
+
+
+
   private function logError(string $message, array $context = []): void
   {
     $this->discordLogger->error($message, $context);

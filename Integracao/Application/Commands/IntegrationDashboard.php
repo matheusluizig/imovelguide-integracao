@@ -53,13 +53,13 @@ class IntegrationDashboard extends Command
         $this->newLine();
 
         while (true) {
-            // Limpar tela
+            
             $this->clearScreen();
 
-            // Exibir dashboard
+            
             $this->displayDashboard($limit);
 
-            // Aguardar intervalo
+            
             sleep($refreshInterval);
         }
     }
@@ -163,15 +163,15 @@ class IntegrationDashboard extends Command
         $startedAt = Carbon::parse($integration->started_at);
         $elapsed = $startedAt->diffForHumans(now(), true);
 
-        // Calcular progresso estimado baseado no tempo decorrido
-        $estimatedTotalTime = 300; // 5 minutos estimado
+        
+        $estimatedTotalTime = 300; 
         $elapsedSeconds = $startedAt->diffInSeconds(now());
         $progress = min(round(($elapsedSeconds / $estimatedTotalTime) * 100), 95);
 
-        // Criar barra de progresso
+        
         $progressBar = $this->createProgressBar($progress, 40);
 
-        // Cor baseada no tempo decorrido
+        
         $color = $this->getProgressColor($progress);
 
         $line = sprintf(
@@ -226,7 +226,7 @@ class IntegrationDashboard extends Command
         $createdAt = Carbon::parse($integration->created_at);
         $timeAgo = $createdAt->diffForHumans(now(), true);
 
-        // Cor baseada na prioridade
+        
         $priorityColor = $this->getPriorityColor($priority);
 
         $line = sprintf(
@@ -413,7 +413,7 @@ class IntegrationDashboard extends Command
 
     private function clearScreen(): void
     {
-        // Limpar tela (funciona na maioria dos terminais)
+        
         echo "\033[2J\033[H";
     }
 }

@@ -10,9 +10,9 @@ use App\Integracao\Domain\Entities\IntegrationsQueues;
 class IntegrationCacheService
 {
     private const CACHE_PREFIX = 'integration_';
-    private const DEFAULT_TTL = 3600; // 1 hora
-    private const LONG_TTL = 86400; // 24 horas
-    private const SHORT_TTL = 300; // 5 minutos
+    private const DEFAULT_TTL = 3600; 
+    private const LONG_TTL = 86400; 
+    private const SHORT_TTL = 300; 
 
     public function cacheIntegrationData(Integracao $integration): void
     {
@@ -176,8 +176,8 @@ class IntegrationCacheService
     {
         $pattern = self::CACHE_PREFIX . '*';
 
-        // Nota: Redis não suporta wildcard delete nativamente
-        // Em produção, considere usar tags de cache ou manter uma lista de chaves
+        
+        
         Log::info("All integration cache invalidated", ['pattern' => $pattern]);
     }
 

@@ -22,7 +22,7 @@ class ClearIntegrationSlots extends Command
         try {
             $redis = app('redis');
             
-            // Verificar slots atuais
+            
             $activeIntegrations = $redis->smembers('active_integrations');
             $count = $redis->get('active_integrations_count') ?: 0;
             
@@ -34,7 +34,7 @@ class ClearIntegrationSlots extends Command
                 $this->line("  IDs ativos: " . implode(', ', $activeIntegrations));
             }
             
-            // Limpar slots
+            
             $redis->del('active_integrations');
             $redis->del('active_integrations_count');
             

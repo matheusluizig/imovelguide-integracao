@@ -24,7 +24,7 @@ class ReprocessFailedIntegrations extends Command
         $this->info('🔄 INICIANDO REPROCESSAMENTO DE INTEGRAÇÕES FALHADAS');
         $this->newLine();
 
-        // Verificar se deve forçar sem confirmação
+        
         if (!$this->option('force')) {
             if (!$this->confirm('⚠️  Esta operação irá limpar TODAS as filas e reprocessar integrações. Continuar?')) {
                 $this->info('❌ Operação cancelada pelo usuário.');
@@ -37,15 +37,15 @@ class ReprocessFailedIntegrations extends Command
         $errors = 0;
 
         try {
-            // 1. Limpar todas as filas
+            
             $this->clearAllQueues();
 
-            // 2. Limpar registros antigos se solicitado
+            
             if ($this->option('clean-old')) {
                 $this->cleanOldQueueRecords();
             }
 
-            // 3. Reprocessar integrações com status diferentes de 2
+            
             $processed = $this->reprocessIntegrations();
 
             $executionTime = microtime(true) - $startTime;
@@ -102,20 +102,20 @@ class ReprocessFailedIntegrations extends Command
         $statusFilter = $this->option('status');
         $limit = (int) $this->option('limit');
 
-        // Construir query base
+        
         $query = Integracao::join('integrations_queues', 'integracao_xml.id', '=', 'integrations_queues.integration_id')
             ->join('users', 'integracao_xml.user_id', '=', 'users.id')
             ->where('users.inative', 0)
             ->where('integrations_queues.status', '!=', IntegrationsQueues::STATUS_DONE);
 
-        // Aplicar filtro de status específico se fornecido
+        
         if ($statusFilter) {
             $statuses = array_map('intval', explode(',', $statusFilter));
             $query->whereIn('integrations_queues.status', $statuses);
         }
 
         $integrations = $query->select('integracao_xml.*', 'integrations_queues.priority')
-            ->orderBy('integrations_queues.priority', 'desc') // Prioridade alta primeiro
+            ->orderBy('integrations_queues.priority', 'desc') 
             ->orderBy('integracao_xml.updated_at', 'desc')
             ->limit($limit)
             ->get();
@@ -134,7 +134,7 @@ class ReprocessFailedIntegrations extends Command
 
         foreach ($integrations as $integration) {
             try {
-                // Resetar status da fila para pendente
+                
                 DB::transaction(function() use ($integration) {
                     IntegrationsQueues::where('integration_id', $integration->id)
                         ->update([
@@ -145,13 +145,13 @@ class ReprocessFailedIntegrations extends Command
                             'updated_at' => now()
                         ]);
 
-                    // Resetar status da integração se necessário
+                    
                     if ($integration->status !== Integracao::XML_STATUS_NOT_INTEGRATED) {
                         $integration->update(['status' => Integracao::XML_STATUS_NOT_INTEGRATED]);
                     }
                 });
 
-                // Determinar fila baseada na prioridade
+                
                 $queueName = 'normal-integrations';
                 if ($integration->priority == IntegrationsQueues::PRIORITY_PLAN) {
                     $queueName = 'priority-integrations';
@@ -159,7 +159,7 @@ class ReprocessFailedIntegrations extends Command
                     $queueName = 'level-integrations';
                 }
 
-                // Despachar job para a fila apropriada
+                
                 ProcessIntegrationJob::dispatch($integration->id, $queueName);
 
                 $processed++;

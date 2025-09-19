@@ -25,7 +25,7 @@ class AutomaticLevelIntegration extends Command
             $cacheKey = 'last_level_integration_run';
             $isLight = $this->option('light');
 
-            // Determinar período de busca
+            
             if ($isLight) {
                 $searchFrom = now()->subHours(1);
                 $this->info('⚡ Modo LIGHT: Processando última hora');
@@ -35,7 +35,7 @@ class AutomaticLevelIntegration extends Command
                 $this->info('🔄 Modo NORMAL: Processando desde última execução');
             }
 
-            // Buscar integrações de nível pendentes - Query otimizada com joins
+            
             $integrations = Integracao::join('integrations_queues', 'integracao_xml.id', '=', 'integrations_queues.integration_id')
                 ->join('users', 'integracao_xml.user_id', '=', 'users.id')
                 ->where('integracao_xml.status', Integracao::XML_STATUS_NOT_INTEGRATED)
@@ -46,7 +46,7 @@ class AutomaticLevelIntegration extends Command
                 ->where('integracao_xml.updated_at', '>=', $searchFrom)
                 ->select('integracao_xml.*')
                 ->orderBy('integracao_xml.updated_at', 'desc')
-                ->limit(50) // Limite maior para integrações de nível (prioridade média)
+                ->limit(50) 
                 ->get();
 
             if ($integrations->isEmpty()) {
@@ -57,12 +57,12 @@ class AutomaticLevelIntegration extends Command
 
             $this->info("📊 Encontradas {$integrations->count()} integrações de nível pendentes");
 
-            // Verificar jobs ativos na fila
+            
             $activeJobs = DB::table('jobs')
                 ->where('queue', 'level-integrations')
                 ->count();
 
-            $maxJobs = 2; // Máximo 2 jobs simultâneos para nível
+            $maxJobs = 2; 
             $availableSlots = max(0, $maxJobs - $activeJobs);
 
             if ($availableSlots === 0) {
@@ -72,30 +72,30 @@ class AutomaticLevelIntegration extends Command
 
             $this->info("🔄 Slots disponíveis: {$availableSlots}");
 
-            // Processar integrações em lotes - Otimizado para evitar N+1
+            
             $processed = 0;
-            $chunkSize = min($availableSlots, 3); // Máximo 3 por execução
+            $chunkSize = min($availableSlots, 3); 
             $integrationIds = $integrations->take($chunkSize)->pluck('id')->toArray();
 
-            // Verificar jobs existentes em uma única query - Otimizada com JSON_UNQUOTE
+            
             $existingJobs = DB::table('jobs')
                 ->where('queue', 'level-integrations')
                 ->whereIn(DB::raw('JSON_UNQUOTE(JSON_EXTRACT(payload, "$.integrationId"))'), $integrationIds)
                 ->pluck(DB::raw('JSON_UNQUOTE(JSON_EXTRACT(payload, "$.integrationId"))'))
                 ->map(function($id) {
-                    return (int) $id; // Converter para int para comparação
+                    return (int) $id; 
                 })
                 ->toArray();
 
             foreach ($integrations->take($chunkSize) as $integration) {
                 try {
-                    // Verificar se já existe job para esta integração
+                    
                     if (in_array($integration->id, $existingJobs)) {
                         $this->line("⏭️ Integração {$integration->id} já está na fila");
                         continue;
                     }
 
-                    // Despachar job
+                    
                     ProcessIntegrationJob::dispatch($integration->id, 'level-integrations');
                     $processed++;
 
@@ -110,7 +110,7 @@ class AutomaticLevelIntegration extends Command
                 }
             }
 
-            // Atualizar cache
+            
             Cache::put($cacheKey, now()->toDateTimeString(), 3600);
 
             $executionTime = round(microtime(true) - $startTime, 2);

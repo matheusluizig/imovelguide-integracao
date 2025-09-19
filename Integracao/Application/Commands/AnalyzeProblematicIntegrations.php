@@ -19,7 +19,7 @@ class AnalyzeProblematicIntegrations extends Command
         
         $this->info("Analisando {$limit} integrações problemáticas...");
 
-        // Buscar integrações que falharam recentemente
+        
         $failedIntegrations = IntegrationsQueues::where('status', 3)
             ->where('updated_at', '>', now()->subHours(24))
             ->orderBy('updated_at', 'desc')
@@ -52,7 +52,7 @@ class AnalyzeProblematicIntegrations extends Command
         $this->info("Step: {$queue->last_error_step}");
 
         try {
-            // Testar download do XML
+            
             $this->info("\n--- Testando Download ---");
             $response = Http::timeout(30)->get($integration->link);
             
@@ -65,7 +65,7 @@ class AnalyzeProblematicIntegrations extends Command
                 return;
             }
 
-            // Testar parsing XML
+            
             $this->info("\n--- Testando Parsing XML ---");
             $document = new Document();
             $document->load($response->body(), false, Document::TYPE_XML);
@@ -90,7 +90,7 @@ class AnalyzeProblematicIntegrations extends Command
                 $this->info("... e mais " . (count($childElements) - 10) . " elementos");
             }
 
-            // Verificar se algum provedor reconhece
+            
             $this->info("\n--- Verificando Provedores ---");
             $providers = [
                 'ListingDataFeed + Listings' => $document->has('ListingDataFeed') && $document->has('Listings'),

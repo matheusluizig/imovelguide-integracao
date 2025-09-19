@@ -12,7 +12,7 @@ class IntegrationServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        // Registrar services como singletons para melhor performance
+        
         $this->app->singleton(IntegrationProcessingService::class, function ($app) {
             return new IntegrationProcessingService(
                 $app->make(IntegrationRepository::class),
@@ -35,7 +35,7 @@ class IntegrationServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        // Configurações específicas do sistema de integração
+        
         $this->publishConfig();
     }
 
