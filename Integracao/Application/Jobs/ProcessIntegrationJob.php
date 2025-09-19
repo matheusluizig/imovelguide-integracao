@@ -24,8 +24,8 @@ class ProcessIntegrationJob implements ShouldQueue
 
     public $integrationId;
     public $timeout = 86400; 
-    public $tries = 5; // Aumentando o número de tentativas
-    public $backoff = [60, 300, 900, 3600, 7200]; // 1min, 5min, 15min, 1h, 2h
+    public $tries = 5; 
+    public $backoff = [60, 300, 900, 3600, 7200]; 
 
     public function __construct(int $integrationId, ?string $queueName = null)
     {
@@ -34,9 +34,9 @@ class ProcessIntegrationJob implements ShouldQueue
         $this->onQueue($queueName ?? 'normal-integrations');
     }
 
-    /**
-     * Determina o nome da fila baseado na prioridade da integração
-     */
+    
+
+
     private function determineQueueName(int $integrationId): string
     {
         try {
@@ -60,7 +60,7 @@ class ProcessIntegrationJob implements ShouldQueue
 
     public function handle()
     {
-        // Configurar limites para integrações grandes (apenas quando necessário)
+        
         ini_set('memory_limit', '2G');
         set_time_limit(0);
         $startTime = microtime(true);
@@ -68,43 +68,43 @@ class ProcessIntegrationJob implements ShouldQueue
         $queue = null;
         $correlationId = null;
 
-        // Log da execução do job
+        
         Log::info("ProcessIntegrationJob started", [
             'integration_id' => $this->integrationId,
             'attempt' => $this->attempts(),
             'job_id' => $this->job ? $this->job->getJobId() : 'unknown'
         ]);
 
-        // Controle de concorrência - máximo 3 integrações simultâneas
+        
         if (!$this->acquireIntegrationSlot()) {
             Log::info("Integration slot not available, releasing job for retry", ['integration_id' => $this->integrationId]);
-            $this->release(60); // Retry em 60 segundos
+            $this->release(60); 
             return;
         }
 
         try {
-            // Buscar integração com relacionamentos necessários
+            
             $integration = Integracao::with(['user'])->find($this->integrationId);
             if (!$integration) {
                 Log::error("Integration not found, job will fail", ['integration_id' => $this->integrationId]);
                 throw new \RuntimeException("Integration {$this->integrationId} not found");
             }
 
-            // Buscar fila separadamente
+            
             $queue = IntegrationsQueues::where('integration_id', $this->integrationId)->first();
             if (!$queue) {
                 Log::error("Queue not found for integration, job will fail", ['integration_id' => $this->integrationId]);
                 throw new \RuntimeException("Queue not found for integration {$this->integrationId}");
             }
 
-            // Verificar se já está processando
+            
             if ($queue->status === IntegrationsQueues::STATUS_IN_PROCESS) {
                 Log::info("Integration already processing, releasing job for retry", ['integration_id' => $this->integrationId]);
-                $this->release(60); // Retry em 60 segundos
+                $this->release(60); 
                 return;
             }
 
-            // Inicializar sistema de logging estruturado
+            
             $loggingService = app(IntegrationLoggingService::class);
             $correlationId = $loggingService->logIntegrationStart($integration, [
                 'job_id' => $this->job ? $this->job->getJobId() : 'unknown',
@@ -112,31 +112,31 @@ class ProcessIntegrationJob implements ShouldQueue
                 'queue' => $this->job ? $this->job->getQueue() : 'unknown'
             ]);
 
-            // Cache para evitar reprocessamento - ANTES da atualização de status
+            
             $cacheKey = "integration_processing_{$this->integrationId}";
             $lock = null;
 
             try {
-                $lock = Cache::lock($cacheKey, 21600); // 6 horas de lock - adequado para integrações grandes
+                $lock = Cache::lock($cacheKey, 21600); 
 
                 if (!$lock->get()) {
                     Log::info("Integration already being processed, releasing job for retry", ['integration_id' => $this->integrationId]);
-                    $this->release(300); // Retry em 5 minutos
+                    $this->release(300); 
                     return;
                 }
 
-                // Atualizar status para processando
+                
                 $this->updateStatus($integration, $queue, IntegrationsQueues::STATUS_IN_PROCESS, Integracao::XML_STATUS_IN_UPDATE_BOTH);
 
-                // Executar processamento completo
+                
                 $integrationService = app(IntegrationProcessingService::class);
                 $result = $integrationService->processIntegration($integration);
 
-                // Calcular tempo de execução
+                
                 $executionTime = microtime(true) - $startTime;
 
                 if ($result['success']) {
-                    // Transação única para updates de sucesso
+                    
                     DB::transaction(function() use ($integration, $queue, $result, $executionTime) {
                         $this->updateStatus($integration, $queue, IntegrationsQueues::STATUS_DONE, Integracao::XML_STATUS_INTEGRATED);
                         $queue->update([
@@ -146,9 +146,9 @@ class ProcessIntegrationJob implements ShouldQueue
                         ]);
                     });
 
-                    // Log de sucesso estruturado
+                    
                     $loggingService->logIntegrationSuccess($integration, $correlationId, $result['metrics'] ?? []);
-                    // Log de performance
+                    
                     $loggingService->logPerformanceMetrics([
                         'integration_id' => $this->integrationId,
                         'execution_time' => $executionTime,
@@ -161,7 +161,7 @@ class ProcessIntegrationJob implements ShouldQueue
                     throw new \Exception($result['error'] ?? 'Unknown processing error');
                 }
             } finally {
-                // Liberar lock de processamento - sempre liberar
+                
                 if ($lock) {
                     $lock->release();
                 }
@@ -169,7 +169,7 @@ class ProcessIntegrationJob implements ShouldQueue
 
         } catch (\Exception $e) {
             $executionTime = microtime(true) - $startTime;
-            // Log de erro estruturado
+            
             if ($integration && $correlationId) {
                 $loggingService = app(IntegrationLoggingService::class);
                 $loggingService->logIntegrationError($integration, $correlationId, $e, [
@@ -180,7 +180,7 @@ class ProcessIntegrationJob implements ShouldQueue
             }
 
             if ($integration && $queue) {
-                // Transação única para updates de erro
+                
                 DB::transaction(function() use ($integration, $queue, $e, $executionTime, $correlationId) {
                     $this->updateStatus($integration, $queue, IntegrationsQueues::STATUS_STOPPED, Integracao::XML_STATUS_CRM_ERRO);
                     $queue->update([
@@ -200,12 +200,12 @@ class ProcessIntegrationJob implements ShouldQueue
                 });
             }
 
-            // Re-throw para que o Laravel possa fazer retry
+            
             throw $e;
         } finally {
             $this->releaseIntegrationSlot();
 
-            // Liberar lock de processamento - sempre liberar
+            
             if (isset($lock) && $lock) {
                 $lock->release();
             }
@@ -227,7 +227,7 @@ class ProcessIntegrationJob implements ShouldQueue
 
     public function failed(\Throwable $exception): void
     {
-        // Liberar slot de integração em caso de falha
+        
         $this->releaseIntegrationSlot();
 
         Log::error("Integration job failed permanently", [
@@ -244,7 +244,7 @@ class ProcessIntegrationJob implements ShouldQueue
                 $exception instanceof \RedisException ||
                 strpos($exception->getMessage(), 'redis') !== false ||
                 strpos($exception->getMessage(), 'connection') !== false) {
-                // Resetar tentativas para permitir uma nova tentativa
+                
                 $queue->update([
                     'attempts' => 0,
                     'error_message' => "Redis connection issue detected, job will be retried: " . $exception->getMessage(),
@@ -259,7 +259,7 @@ class ProcessIntegrationJob implements ShouldQueue
                     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
                 ]);
 
-                // Reagendar para execução em 30 minutos
+                
                 dispatch(new self($this->integrationId))->delay(now()->addMinutes(30));
 
                 Log::info("Integration job rescheduled due to Redis connection issues", [
@@ -285,15 +285,15 @@ class ProcessIntegrationJob implements ShouldQueue
         }
     }
 
-    /**
-     * Adquire um slot de integração (máximo 3 simultâneas)
-     */
+    
+
+
     private function acquireIntegrationSlot(): bool
     {
         try {
             $redis = app('redis');
             
-            // Verificar se já está processando
+            
             $isActive = $redis->sismember('imovelguide_database_active_integrations', $this->integrationId);
             if ($isActive) {
                 Log::info("Integration already active, slot not available", [
@@ -302,13 +302,13 @@ class ProcessIntegrationJob implements ShouldQueue
                 return false;
             }
 
-            // Verificar limite de concorrência primeiro
+            
             $count = $redis->get('imovelguide_database_active_integrations_count') ?: 0;
             if ($count >= 3) {
-                // Limpar slots órfãos apenas se o limite foi atingido
+                
                 $this->cleanupOrphanedSlots($redis);
                 
-                // Verificar novamente após limpeza
+                
                 $count = $redis->get('imovelguide_database_active_integrations_count') ?: 0;
                 if ($count >= 3) {
                     Log::info("Max concurrent integrations reached, slot not available", [
@@ -319,7 +319,7 @@ class ProcessIntegrationJob implements ShouldQueue
                 }
             }
 
-            // Adquirir slot
+            
             $redis->multi();
             $redis->incr('imovelguide_database_active_integrations_count');
             $redis->expire('imovelguide_database_active_integrations_count', 3600);
@@ -348,19 +348,19 @@ class ProcessIntegrationJob implements ShouldQueue
         }
     }
 
-    /**
-     * Libera um slot de integração
-     */
+    
+
+
     private function releaseIntegrationSlot(): void
     {
         try {
             $redis = app('redis');
             
-            // Remover da lista de ativos
+            
             $wasActive = $redis->srem('imovelguide_database_active_integrations', $this->integrationId);
             
             if ($wasActive) {
-                // Decrementar contador
+                
                 $count = $redis->decr('imovelguide_database_active_integrations_count');
                 if ($count < 0) {
                     $redis->set('imovelguide_database_active_integrations_count', 0);
@@ -384,15 +384,15 @@ class ProcessIntegrationJob implements ShouldQueue
         }
     }
 
-    /**
-     * Limpa slots órfãos (integrações que não estão mais processando)
-     */
+    
+
+
     private function cleanupOrphanedSlots($redis): void
     {
         try {
-            // Usar lock para evitar race conditions durante limpeza
+            
             $lockKey = "cleanup_orphaned_slots_lock";
-            $lock = $redis->set($lockKey, 1, 'EX', 30, 'NX'); // Lock por 30 segundos
+            $lock = $redis->set($lockKey, 1, 'EX', 30, 'NX'); 
             
             if (!$lock) {
                 Log::debug("Cleanup already in progress, skipping");
@@ -409,7 +409,7 @@ class ProcessIntegrationJob implements ShouldQueue
                 ]);
 
                 if (empty($activeIntegrations)) {
-                    // Se não há slots ativos mas o contador não é zero, resetar
+                    
                     if ($currentCount > 0) {
                         $redis->set('imovelguide_database_active_integrations_count', 0);
                         Log::info("Reset integration count to 0 - no active integrations found");
@@ -419,7 +419,7 @@ class ProcessIntegrationJob implements ShouldQueue
 
                 $orphanedSlots = [];
                 foreach ($activeIntegrations as $integrationId) {
-                    // Verificar se a integração ainda está em processamento no banco
+                    
                     $queue = IntegrationsQueues::where('integration_id', $integrationId)
                         ->where('status', IntegrationsQueues::STATUS_IN_PROCESS)
                         ->first();
@@ -434,14 +434,14 @@ class ProcessIntegrationJob implements ShouldQueue
                         'orphaned_slots' => $orphanedSlots
                     ]);
 
-                    // Usar transação para garantir consistência
+                    
                     $redis->multi();
                     foreach ($orphanedSlots as $integrationId) {
                         $redis->srem('imovelguide_database_active_integrations', $integrationId);
                     }
                     $redis->exec();
 
-                    // Ajustar contador
+                    
                     $newCount = max(0, $currentCount - count($orphanedSlots));
                     $redis->set('imovelguide_database_active_integrations_count', $newCount);
 
@@ -452,7 +452,7 @@ class ProcessIntegrationJob implements ShouldQueue
                     ]);
                 }
             } finally {
-                // Sempre liberar o lock
+                
                 $redis->del($lockKey);
             }
 

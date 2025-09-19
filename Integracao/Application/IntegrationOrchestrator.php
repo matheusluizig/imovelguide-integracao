@@ -30,7 +30,7 @@ class IntegrationOrchestrator
                     ->onQueue('normal-integrations');
                 $dispatched++;
                 if ($dispatched % $maxParallel === 0) {
-                    usleep(100000); // 100ms para evitar burst
+                    usleep(100000); 
                 }
             }
 
@@ -42,7 +42,7 @@ class IntegrationOrchestrator
     {
         $chunkSize = (int) config('integration.chunk_size', 200);
         $chunks = [];
-        // Criamos 3 chunks iniciais; os próprios chunks param ao detectar fim do arquivo
+        
         for ($i = 0; $i < 3; $i++) {
             $chunk = IntegrationRunChunk::create([
                 'run_id' => $run->id,

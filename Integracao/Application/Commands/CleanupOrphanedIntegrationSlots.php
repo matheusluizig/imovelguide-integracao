@@ -19,7 +19,7 @@ class CleanupOrphanedIntegrationSlots extends Command
         try {
             $redis = Redis::connection('queue');
             
-            // Verificar slots ativos
+            
             $activeIntegrations = $redis->smembers('imovelguide_database_active_integrations');
             $currentCount = $redis->get('imovelguide_database_active_integrations_count') ?: 0;
             
@@ -31,7 +31,7 @@ class CleanupOrphanedIntegrationSlots extends Command
                 return;
             }
 
-            // Se não há slots ativos mas o contador não é zero, resetar
+            
             if (empty($activeIntegrations) && $currentCount > 0) {
                 $this->warn("Contador incorreto detectado. Resetando para 0.");
                 $redis->set('imovelguide_database_active_integrations_count', 0);
@@ -41,7 +41,7 @@ class CleanupOrphanedIntegrationSlots extends Command
 
             $orphanedSlots = [];
             foreach ($activeIntegrations as $integrationId) {
-                // Verificar se a integração ainda está em processamento no banco
+                
                 $queue = IntegrationsQueues::where('integration_id', $integrationId)
                     ->where('status', IntegrationsQueues::STATUS_IN_PROCESS)
                     ->first();
@@ -59,13 +59,13 @@ class CleanupOrphanedIntegrationSlots extends Command
                 return;
             }
 
-            // Confirmar limpeza
+            
             if ($this->confirm("Deseja limpar " . count($orphanedSlots) . " slots órfãos?")) {
                 foreach ($orphanedSlots as $integrationId) {
                     $redis->srem('imovelguide_database_active_integrations', $integrationId);
                 }
 
-                // Ajustar contador
+                
                 $currentCount = $redis->get('imovelguide_database_active_integrations_count') ?: 0;
                 $newCount = max(0, $currentCount - count($orphanedSlots));
                 $redis->set('imovelguide_database_active_integrations_count', $newCount);

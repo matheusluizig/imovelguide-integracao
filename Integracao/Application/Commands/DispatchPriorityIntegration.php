@@ -16,7 +16,7 @@ class DispatchPriorityIntegration extends Command
     {
         $integrationId = $this->argument('integration_id');
 
-        // Verificar se a integração existe
+        
         $integration = Integracao::find($integrationId);
         if (!$integration) {
             $this->error("❌ Integração ID {$integrationId} não encontrada");
@@ -26,7 +26,7 @@ class DispatchPriorityIntegration extends Command
         $this->info("🚀 Despachando integração {$integrationId} para fila prioritária...");
 
         try {
-            // 1. Promover prioridade da integração
+            
             $queue = IntegrationsQueues::firstOrCreate(
                 ['integration_id' => $integrationId],
                 [
@@ -37,7 +37,7 @@ class DispatchPriorityIntegration extends Command
                 ]
             );
 
-            // Atualizar para prioridade máxima
+            
             $queue->priority = IntegrationsQueues::PRIORITY_PLAN;
             $queue->status = IntegrationsQueues::STATUS_PENDING;
             $queue->started_at = null;
@@ -48,11 +48,11 @@ class DispatchPriorityIntegration extends Command
             $queue->attempts = 0;
             $queue->save();
 
-            // 2. Reabrir integração para processamento
+            
             $integration->status = Integracao::XML_STATUS_NOT_INTEGRATED;
             $integration->save();
 
-            // 3. Despachar job na fila prioritária
+            
             ProcessIntegrationJob::dispatch($integrationId, 'priority-integrations');
 
             $this->info("✅ Integração {$integrationId} ({$integration->system}) despachada com prioridade máxima!");
