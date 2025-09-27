@@ -35,7 +35,7 @@ class IntegrationService
       unset($imovel[1]);
       $imovel = implode('', $imovel);
     } catch (\Exception $e) {
-      
+
     }
     $array['Descricao'] = trim(IntegrationService::get_string_between($imovel, '<Description>', '</Description>'));
     if (empty($array['Descricao'])) {
@@ -52,7 +52,7 @@ class IntegrationService
     if (empty($array['Subtitle'])) {
       $array['Subtitle'] = IntegrationService::get_string_between($imovel, '<title>', '</title>');
     }
-    
+
     $array['PrecoVenda'] = IntegrationService::get_string_between(
       $imovel,
       '<ListPrice currency="BRL">',
@@ -358,12 +358,12 @@ class IntegrationService
       $array['GarantiaAluguel'] = 0;
     }
     $array['Permuta'] = IntegrationService::get_string_between($imovel, '<Exchange>', '</Exchange>');
-    
+
     $array['Construtora'] = IntegrationService::get_string_between($imovel, '<Builder>', '</Builder>');
     $array['Torres'] = IntegrationService::get_string_between($imovel, '<Towers>', '</Towers>');
     $array['Andares'] = IntegrationService::get_string_between($imovel, '<Floors>', '</Floors>');
     $array['UnidadesAndar'] = IntegrationService::get_string_between($imovel, '<UnitsPerFloor>', '</UnitsPerFloor>');
-    
+
     $array['Novo'] = IntegrationService::get_string_between($imovel, '<NewProperty>', '</NewProperty>');
     if (!empty($array['Novo'])) {
       switch ($array['Novo']) {
@@ -496,7 +496,7 @@ class IntegrationService
         '</Garage>'
       );
     }
-    
+
     $caracteristicas = IntegrationService::get_string_between($imovel, '<Features>', '</Features>');
     $caracteristicas = str_replace('<![CDATA[', '', $caracteristicas);
     $caracteristicas = str_replace(']]>', '', $caracteristicas);
@@ -671,7 +671,7 @@ class IntegrationService
     if (stristr($caracteristicas, '<Feature>Individual Warehouse</Feature>') == true) {
       $array['DepositoIndividual'] = 1;
     }
-    
+
     $array['MostrarEndereco'] = IntegrationService::get_string_between($imovel, '<Location displayAddress="', '">');
     $array['MostrarEndereco'] = IntegrationService::verifyShowAddress($array['MostrarEndereco'], $log);
     $array['UF'] = IntegrationService::get_string_between($imovel, '<State abbreviation="', '">');
@@ -740,14 +740,14 @@ class IntegrationService
     if (empty($array['Longitude'])) {
       $array['Longitude'] = IntegrationService::get_string_between($imovel, '<longitude>', '</longitude>');
     }
-    
+
     if (!isset($array['Spotlight'])) {
       $array['Spotlight'] = 0;
     }
     if (!isset($array['AreaTotal'])) {
       $array['AreaTotal'] = null;
     }
-    
+
     $array['Video'] = IntegrationService::get_string_between($imovel, '<Item medium="video">', '</Item>');
     foreach ($array as $index => $a) {
       if (!empty($array[$index])) {
@@ -809,7 +809,7 @@ class IntegrationService
     if (!empty($array['Descricao'])) {
       $array['Descricao'] = IntegrationService::replaceAsc($array['Descricao']);
     }
-    
+
     $array['TipoOferta'] = IntegrationService::get_string_between($imovel, '<type>', '</type>');
     $array['PrecoVenda'] = null;
     $array['PrecoLocacao'] = null;
@@ -840,13 +840,13 @@ class IntegrationService
       } else {
       }
     }
-    
+
     $array['CodigoImovel'] = trim(IntegrationService::get_string_between($imovel, '<id>', '</id>'));
     $array['AreaTerreno'] = IntegrationService::get_string_between($imovel, '<plot_area>', '</plot_area>');
     $array['AreaUtil'] = IntegrationService::get_string_between($imovel, '<flor_area>', '</flor_area>');
     $array['QtdDormitorios'] = IntegrationService::get_string_between($imovel, '<rooms>', '</rooms>');
     $array['QtdVagas'] = IntegrationService::get_string_between($imovel, '<parking>', '</parking>');
-    
+
     $array['UF'] = IntegrationService::get_string_between($imovel, '<region>', '</region>');
     $array['UF'] = IntegrationService::fixUf($array['UF'], $log);
     if ($array['UF'] == 'SKIP') {
@@ -854,7 +854,7 @@ class IntegrationService
     }
     $array['Cidade'] = IntegrationService::get_string_between($imovel, '<city>', '</city>');
     $array['Bairro'] = IntegrationService::get_string_between($imovel, '<city_area>', '</city_area>');
-    
+
     if (!isset($array['Spotlight'])) {
       $array['Spotlight'] = 0;
     }
@@ -927,7 +927,7 @@ class IntegrationService
     if (!isset($array['MostrarEndereco'])) {
       $array['MostrarEndereco'] = 2;
     }
-    
+
     foreach ($array as $index => $a) {
       if (!empty($array[$index])) {
         $array[$index] = str_replace('<![CDATA[', '', $array[$index]);
@@ -970,7 +970,7 @@ class IntegrationService
     $array['Subtitle'] = IntegrationService::get_string_between($imovel, '<Titulo>', '</Titulo>');
     $array['KeyWords'] = IntegrationService::get_string_between($imovel, '<PalavraschavesSEO>', '</PalavraschavesSEO>');
     $array['Spotlight'] = IntegrationService::get_string_between($imovel, '<Destaque>', '</Destaque>');
-    
+
     $array['Permuta'] = IntegrationService::get_string_between($imovel, '<Permuta>', '</Permuta>');
     $array['PrecoVenda'] = IntegrationService::get_string_between($imovel, '<Valorvenda>', '</Valorvenda>');
     if (!empty($array['PrecoVenda'])) {
@@ -1021,10 +1021,10 @@ class IntegrationService
     } else {
       $array['TipoOferta'] = 1;
     }
-    
+
     $array['Construtora'] = IntegrationService::get_string_between($imovel, '<Construtora>', '</Construtora>');
     $array['Andares'] = IntegrationService::get_string_between($imovel, '<Andares>', '</Andares>');
-    
+
     $array['TipoImovel'] = IntegrationService::get_string_between($imovel, '<Tipo>', '</Tipo>');
     $array['TipoImovel'] = IntegrationService::tipoImovel($array['TipoImovel'], $log);
     $array['AnoConstrucao'] = IntegrationService::get_string_between($imovel, '<AnoConstrucao>', '</AnoConstrucao>');
@@ -1068,7 +1068,7 @@ class IntegrationService
     $array['QtdSuites'] = IntegrationService::get_string_between($imovel, '<Suite>', '</Suite>');
     $array['QtdBanheiros'] = IntegrationService::get_string_between($imovel, '<Banheiro2>', '</Banheiro2>');
     $array['QtdVagas'] = IntegrationService::get_string_between($imovel, '<Garagem>', '</Garagem>');
-    
+
     $array['ArCondicionado'] = IntegrationService::get_string_between($imovel, '<Arcondicionado>', '</Arcondicionado>');
     $array['Deposito'] = IntegrationService::get_string_between($imovel, '<Deposito>', '</Deposito>');
     $array['Piscina'] = IntegrationService::get_string_between($imovel, '<Piscina>', '</Piscina>');
@@ -1121,7 +1121,7 @@ class IntegrationService
     $array['GasEncanado'] = IntegrationService::get_string_between($imovel, '<Gas>', '</Gas>');
     $array['SalaoJogos'] = IntegrationService::get_string_between($imovel, '<Salajogos>', '</Salajogos>');
     $array['Varanda'] = IntegrationService::get_string_between($imovel, '<Varanda>', '</Varanda>');
-    
+
     $array['UF'] = IntegrationService::get_string_between($imovel, '<UnidadeFederativa>', '</UnidadeFederativa>');
     $array['UF'] = IntegrationService::fixUf($array['UF'], $log);
     if ($array['UF'] == 'SKIP') {
@@ -1140,7 +1140,7 @@ class IntegrationService
     $array['Numero'] = IntegrationService::get_string_between($imovel, '<Numero>', '</Numero>');
     $array['Latitude'] = IntegrationService::get_string_between($imovel, '<Latitude>', '</Latitude>');
     $array['Longitude'] = IntegrationService::get_string_between($imovel, '<Longitude>', '</Longitude>');
-    
+
     if (!isset($array['GarantiaAluguel'])) {
       $array['GarantiaAluguel'] = null;
     }
@@ -1156,7 +1156,7 @@ class IntegrationService
     if (!isset($array['MostrarEndereco'])) {
       $array['MostrarEndereco'] = 2;
     }
-    
+
     $array['Video'] = IntegrationService::get_string_between($imovel, '<LinkVideo>', '</LinkVideo>');
     foreach ($array as $index => $a) {
       if (!empty($array[$index])) {
@@ -1173,9 +1173,9 @@ class IntegrationService
       if ($index == 0) {
         continue;
       }
-      
+
       $fotos['name'] = IntegrationService::get_string_between($f, '<URL>', '</URL>');
-      
+
       $fotos['Principal'] = IntegrationService::get_string_between($f, '<Principal>', '</Principal>');
       array_push($galeria, $fotos);
     }
@@ -1192,7 +1192,7 @@ class IntegrationService
     $array = [];
     $array['CodigoImovel'] = IntegrationService::get_string_between($imovel, '<reference_code>', '</reference_code>');
     $array['Descricao'] = trim(IntegrationService::get_string_between($imovel, '<obs>', '</obs>'));
-    
+
     $array['PrecoVenda'] = IntegrationService::get_string_between($imovel, '<sell_price>', '</sell_price>');
     if (!empty($array['PrecoVenda'])) {
       $array['PrecoVenda'] = substr($array['PrecoVenda'], 0, strrpos($array['PrecoVenda'], '.'));
@@ -1217,7 +1217,7 @@ class IntegrationService
       }
       return false;
     }
-    
+
     $array['TipoImovel'] = IntegrationService::get_string_between($imovel, '<master_type>', '</master_type>');
     switch ($array['TipoImovel']) {
       case 'M-1':
@@ -1260,11 +1260,11 @@ class IntegrationService
     $array['QtdSuites'] = IntegrationService::get_string_between($composto, '<suite>', '</suite>');
     $array['QtdBanheiros'] = IntegrationService::get_string_between($composto, '<bathroom>', '</bathroom>');
     $array['QtdVagas'] = IntegrationService::get_string_between($composto, '<vagancy>', '</vagancy>');
-    
+
     $array['Cidade'] = IntegrationService::get_string_between($imovel, '<city>', '</city>');
     $array['Bairro'] = IntegrationService::get_string_between($imovel, '<neighborhood>', '</neighborhood>');
     $array['CEP'] = IntegrationService::get_string_between($imovel, '<zipcode>', '</zipcode>');
-    
+
     if (!isset($array['AreaTerreno'])) {
       $array['AreaTerreno'] = null;
     }
@@ -1332,7 +1332,7 @@ class IntegrationService
     if (!isset($array['MostrarEndereco'])) {
       $array['MostrarEndereco'] = 2;
     }
-    
+
     foreach ($array as $index => $a) {
       if (!empty($array[$index])) {
         $array[$index] = str_replace('<![CDATA[', '', $array[$index]);
@@ -1341,7 +1341,7 @@ class IntegrationService
     }
     $dados = collect($array);
     $foto = IntegrationService::get_string_between($imovel, '<photos>', '</photos>');
-    
+
     $foto = explode('<photo>', $imovel);
     $fotos = [];
     $galeria = [];
@@ -1349,10 +1349,10 @@ class IntegrationService
       if ($index == 0) {
         continue;
       }
-      
+
       $fotos['name'] = IntegrationService::get_string_between($f, '<big_file_url>', '</big_file_url>');
       $fotos['URLArquivo'] = IntegrationService::get_string_between($f, '<big_file_url>', '</big_file_url>');
-      
+
       array_push($galeria, $fotos);
     }
     foreach ($galeria as $index => $a) {
@@ -1378,7 +1378,7 @@ class IntegrationService
         $array['Subtitle'] = IntegrationService::get_string_between($imovel, '<TituloAnuncio>', '</TituloAnuncio>');
       }
     }
-    
+
     $array['PrecoVenda'] = IntegrationService::get_string_between($imovel, '<PrecoVenda>', '</PrecoVenda>');
     $array['AreaUtil'] = IntegrationService::get_string_between($imovel, '<AreaUtil>', '</AreaUtil>');
     $array['AreaTotal'] = IntegrationService::get_string_between($imovel, '<AreaTotal>', '</AreaTotal>');
@@ -1548,9 +1548,9 @@ class IntegrationService
     if (empty($array['GarantiaAluguel'])) {
       $array['GarantiaAluguel'] = 0;
     }
-    
+
     $array['UnidadesAndar'] = IntegrationService::get_string_between($imovel, '<QtdAndar>', '</QtdAndar>');
-    
+
     $array['AnoConstrucao'] = IntegrationService::get_string_between($imovel, '<AnoConstrucao>', '</AnoConstrucao>');
     $array['Novo'] = IntegrationService::get_string_between($imovel, '<StatusComercial>', '</StatusComercial>');
     if (!empty($array['Novo'])) {
@@ -1607,7 +1607,7 @@ class IntegrationService
     $array['QtdSuites'] = IntegrationService::get_string_between($imovel, '<QtdSuites>', '</QtdSuites>');
     $array['QtdBanheiros'] = IntegrationService::get_string_between($imovel, '<QtdBanheiros>', '</QtdBanheiros>');
     $array['QtdVagas'] = IntegrationService::get_string_between($imovel, '<QtdVagas>', '</QtdVagas>');
-    
+
     $array['ArCondicionado'] = IntegrationService::get_string_between($imovel, '<Arcondicionado>', '</Arcondicionado>');
     if (empty($array['ArCondicionado'])) {
       $array['ArCondicionado'] = IntegrationService::get_string_between(
@@ -1666,7 +1666,7 @@ class IntegrationService
     if ($array['Elevador'] > 0) {
       $array['Elevador'] = 1;
     }
-    
+
     $array['UF'] = IntegrationService::get_string_between($imovel, '<UF>', '</UF>');
     if (empty($array['UF'])) {
       $array['UF'] = IntegrationService::get_string_between($imovel, '<Estado>', '</Estado>');
@@ -1699,7 +1699,7 @@ class IntegrationService
     }
     $array['Latitude'] = IntegrationService::get_string_between($imovel, '<Latitude>', '</Latitude>');
     $array['Longitude'] = IntegrationService::get_string_between($imovel, '<Longitude>', '</Longitude>');
-    
+
     if (!isset($array['Spotlight'])) {
       $array['Spotlight'] = 0;
     }
@@ -1718,7 +1718,7 @@ class IntegrationService
     if (!isset($array['MostrarEndereco'])) {
       $array['MostrarEndereco'] = 2;
     }
-    
+
     $array['Video'] = IntegrationService::get_string_between($imovel, '<video>', '</video>');
     if (empty($array['Video'])) {
       $array['Video'] = IntegrationService::get_string_between($imovel, '<LinkVideo>', '</LinkVideo>');
@@ -1730,8 +1730,7 @@ class IntegrationService
       }
     }
     $dados = collect($array);
-    
-    
+
     $foto = explode('<Foto>', $imovel);
     $fotos = [];
     $galeria = [];
@@ -1774,7 +1773,7 @@ class IntegrationService
     if (!empty($array['Subtitle'])) {
       $array['Subtitle'] = utf8_encode($array['Subtitle']);
     }
-    
+
     $array['PrecoVenda'] = IntegrationService::get_string_between($imovel, '<PrecoVenda>', '</PrecoVenda>');
     $array['PrecoLocacao'] = IntegrationService::get_string_between($imovel, '<PrecoLocacao>', '</PrecoLocacao>');
     $array['PrecoTemporada'] = IntegrationService::get_string_between(
@@ -1829,9 +1828,9 @@ class IntegrationService
       '</PrecoCondominio>'
     );
     $array['ValorIPTU'] = IntegrationService::get_string_between($imovel, '<ValorIptu>', '</ValorIptu>');
-    
+
     $array['UnidadesAndar'] = IntegrationService::get_string_between($imovel, '<QtdAndar>', '</QtdAndar>');
-    
+
     $array['AnoConstrucao'] = IntegrationService::get_string_between($imovel, '<AnoConstrucao>', '</AnoConstrucao>');
     $array['Novo'] = IntegrationService::get_string_between($imovel, '<Situacao>', '</Situacao>');
     if (!empty($array['Novo'])) {
@@ -1908,7 +1907,7 @@ class IntegrationService
     $array['QtdSuites'] = IntegrationService::get_string_between($imovel, '<QtdSuites>', '</QtdSuites>');
     $array['QtdBanheiros'] = IntegrationService::get_string_between($imovel, '<QtdBanheiros>', '</QtdBanheiros>');
     $array['QtdVagas'] = IntegrationService::get_string_between($imovel, '<QtdVagas>', '</QtdVagas>');
-    
+
     $array['ArCondicionado'] = IntegrationService::get_string_between($imovel, '<Arcondicionado>', '</Arcondicionado>');
     if ($array['ArCondicionado'] == 'Sim') {
       $array['ArCondicionado'] = 1;
@@ -1991,7 +1990,7 @@ class IntegrationService
     } else {
       $array['Elevador'] = 0;
     }
-    
+
     $array['UF'] = IntegrationService::get_string_between($imovel, '<UF>', '</UF>');
     if (!empty($array['UF'])) {
       $array['UF'] = utf8_encode($array['UF']);
@@ -2023,7 +2022,7 @@ class IntegrationService
     }
     $array['Latitude'] = IntegrationService::get_string_between($imovel, '<GMapsLatitude>', '</GMapsLatitude>');
     $array['Longitude'] = IntegrationService::get_string_between($imovel, '<GMapsLongitude>', '</GMapsLongitude>');
-    
+
     if (!isset($array['Spotlight'])) {
       $array['Spotlight'] = 0;
     }
@@ -2054,7 +2053,7 @@ class IntegrationService
     if (!isset($array['Video'])) {
       $array['Video'] = null;
     }
-    
+
     foreach ($array as $index => $a) {
       if (!empty($array[$index])) {
         $array[$index] = str_replace('<![CDATA[', '', $array[$index]);
@@ -2098,7 +2097,7 @@ class IntegrationService
     } else {
       $array['Spotlight'] = 0;
     }
-    
+
     $array['ValorIPTU'] = IntegrationService::get_string_between($imovel, '<valor_iptu>', '</valor_iptu>');
     $array['PrecoCondominio'] = IntegrationService::get_string_between(
       $imovel,
@@ -2142,7 +2141,7 @@ class IntegrationService
         }
       }
     }
-    
+
     $array['TipoImovel'] = IntegrationService::get_string_between($imovel, '<tipoimovel>', '</tipoimovel>');
     $array['TipoImovel'] = IntegrationService::tipoImovel($array['TipoImovel'], $log);
     $array['AreaConstruida'] = IntegrationService::get_string_between(
@@ -2171,7 +2170,7 @@ class IntegrationService
     $array['QtdSuites'] = IntegrationService::get_string_between($imovel, '<suites>', '</suites>');
     $array['QtdBanheiros'] = IntegrationService::get_string_between($imovel, '<banheiro>', '</banheiro>');
     $array['QtdVagas'] = IntegrationService::get_string_between($imovel, '<vagas>', '</vagas>');
-    
+
     $array['UF'] = IntegrationService::get_string_between($imovel, '<endereco_estado>', '</endereco_estado>');
     $array['UF'] = IntegrationService::fixUf($array['UF'], $log);
     if ($array['UF'] == 'SKIP') {
@@ -2191,7 +2190,7 @@ class IntegrationService
       '</endereco_complemento>'
     );
     $array['Numero'] = IntegrationService::get_string_between($imovel, '<endereco_numero>', '</endereco_numero>');
-    
+
     if (!isset($array['Permuta'])) {
       $array['Permuta'] = 0;
     }
@@ -2225,7 +2224,7 @@ class IntegrationService
     if (!isset($array['MostrarEndereco'])) {
       $array['MostrarEndereco'] = 2;
     }
-    
+
     $array['Video'] = IntegrationService::get_string_between($imovel, '<video>', '</video>');
     foreach ($array as $index => $a) {
       if (!empty($array[$index])) {
@@ -2235,7 +2234,7 @@ class IntegrationService
     }
     $dados = collect($array);
     $foto = IntegrationService::get_string_between($imovel, '<fotos>', '</fotos>');
-    
+
     $foto = explode('<foto>', $imovel);
     $fotos = [];
     $galeria = [];
@@ -2243,7 +2242,7 @@ class IntegrationService
       if ($index == 0) {
         continue;
       }
-      
+
       $fotos['name'] = IntegrationService::get_string_between($f, '<foto_url>', '</foto_url>');
       $fotos['URLArquivo'] = IntegrationService::get_string_between($f, '<foto_url>', '</foto_url>');
       $fotos['Principal'] = IntegrationService::get_string_between($f, '<foto_principal>', '</foto_principal>');
@@ -2272,7 +2271,7 @@ class IntegrationService
     if (empty($array['Subtitle'])) {
       $array['Subtitle'] = IntegrationService::get_string_between($imovel, '<TituloImovel>', '</TituloImovel>');
     }
-    
+
     $array['PrecoVenda'] = IntegrationService::get_string_between($imovel, '<PrecoVenda>', '</PrecoVenda>');
     if (empty($array['PrecoVenda'])) {
       $array['PrecoVenda'] = null;
@@ -2335,7 +2334,7 @@ class IntegrationService
       }
     }
     $array['Permuta'] = IntegrationService::get_string_between($imovel, '<AceitaPermuta>', '</AceitaPermuta>');
-    
+
     $array['AreaUtil'] = IntegrationService::get_string_between($imovel, '<AreaUtil>', '</AreaUtil>');
     $array['AreaTotal'] = IntegrationService::get_string_between($imovel, '<AreaTotal>', '</AreaTotal>');
     $array['QtdDormitorios'] = IntegrationService::get_string_between($imovel, '<QtdDormitorios>', '</QtdDormitorios>');
@@ -2439,7 +2438,7 @@ class IntegrationService
         $array['QtdVagas'] = IntegrationService::get_string_between($item, '<valor>', '</valor>');
       }
     }
-    
+
     $array['UF'] = IntegrationService::get_string_between($imovel, '<UF>', '</UF>');
     $array['UF'] = IntegrationService::fixUf($array['UF'], $log);
     if ($array['UF'] == 'SKIP') {
@@ -2463,7 +2462,7 @@ class IntegrationService
     if (empty($array['Longitude'])) {
       $array['Longitude'] = IntegrationService::get_string_between($imovel, '<Longitude>', '</Longitude>');
     }
-    
+
     if (!isset($array['AreaTerreno'])) {
       $array['AreaTerreno'] = null;
     }
@@ -2509,7 +2508,7 @@ class IntegrationService
     if (!isset($array['MostrarEndereco'])) {
       $array['MostrarEndereco'] = 2;
     }
-    
+
     $array['Video'] = IntegrationService::get_string_between($imovel, '<codigoVideo>', '</codigoVideo>');
     if (empty($array['Video'])) {
       $video = IntegrationService::get_string_between($imovel, '<Video>', '</Video>');
@@ -2568,7 +2567,7 @@ class IntegrationService
     if (!empty($array['Descricao'])) {
       $array['Descricao'] = IntegrationService::replaceAsc($array['Descricao']);
     }
-    
+
     $array['TipoOferta'] = IntegrationService::get_string_between($imovel, '<type>', '</type>');
     $array['PrecoVenda'] = null;
     $array['PrecoLocacao'] = null;
@@ -2602,7 +2601,7 @@ class IntegrationService
       } else {
       }
     }
-    
+
     $array['AreaUtil'] = IntegrationService::get_string_between(
       $imovel,
       '<floor_area unit="hectares">',
@@ -2622,12 +2621,12 @@ class IntegrationService
     }
     $array['QtdDormitorios'] = IntegrationService::get_string_between($imovel, '<rooms>', '</rooms>');
     $array['QtdBanheiros'] = IntegrationService::get_string_between($imovel, '<bathrooms>', '</bathrooms>');
-    
+
     $array['UF'] = '00';
     $array['UF'] = IntegrationService::fixUf($array['UF'], $log);
     $array['Cidade'] = IntegrationService::get_string_between($imovel, '<city>', '</city>');
     $array['Bairro'] = IntegrationService::get_string_between($imovel, '<region>', '</region>');
-    
+
     if (!isset($array['Spotlight'])) {
       $array['Spotlight'] = 0;
     }
@@ -2703,7 +2702,7 @@ class IntegrationService
     if (!isset($array['QtdVagas'])) {
       $array['QtdVagas'] = 0;
     }
-    
+
     foreach ($array as $index => $a) {
       if (!empty($array[$index])) {
         $array[$index] = str_replace('<![CDATA[', '', $array[$index]);
@@ -2845,7 +2844,7 @@ class IntegrationService
     $condominiumsData = IntegrationService::getPossibleCondominiumsData($adIds);
     $adBenefitsAmount = IntegrationService::getBenefitsAmountForEachAd($adIds);
     foreach ($imovelData as $index => $D) {
-      
+
       $runIntegration = true;
       $tempArray = array_slice($imovelData, $index + 1);
       foreach ($tempArray as $ta) {
@@ -2917,19 +2916,16 @@ class IntegrationService
           }
 
           if ($D['AreaUtil'] > 0) {
-            
-            
+
             $titleImovelGuide = $titleImovelGuide . number_format(trim($D['AreaUtil']), 0, ',', '.') . ' m²';
           } elseif ($D['AreaConstruida'] > 0) {
-            
-            
+
             $titleImovelGuide = $titleImovelGuide . number_format(trim($D['AreaConstruida']), 0, ',', '.') . ' m²';
           } elseif ($D['AreaTotal'] > 0) {
-            
-            
+
             $titleImovelGuide = $titleImovelGuide . number_format(trim($D['AreaTotal']), 0, ',', '.') . ' m²';
           } elseif ($D['AreaTerreno'] > 0) {
-            
+
             $titleImovelGuide = $titleImovelGuide . number_format(trim($D['AreaTerreno']), 0, ',', '.') . ' m²';
           }
           if ($D['Bairro'] != null) {
@@ -2957,7 +2953,7 @@ class IntegrationService
             }
           }
           if (empty($tipoOferta)) {
-            
+
             if (!$log) {
               dd("ERRO PREÇO\nCodigo do Anuncio: " . $array['CodigoImovel'] . "\n" . $D['PrecoVenda'] . "\n");
             } else {
@@ -3193,7 +3189,7 @@ class IntegrationService
               array_push($idsCaracteristicas, 52);
             }
           }
-          
+
           if (
             $D['TipoImovel'] == 1 ||
             $D['TipoImovel'] == 2 ||
@@ -3218,13 +3214,13 @@ class IntegrationService
               array_push($idsCaracteristicas, 3);
             }
           }
-          
+
           if ($D['TipoImovel'] == 1 || $D['TipoImovel'] == 8) {
             if (!empty($D['DepositoIndividual'])) {
               array_push($idsCaracteristicas, 53);
             }
           }
-          
+
           if (
             $D['TipoImovel'] == 1 ||
             $D['TipoImovel'] == 2 ||
@@ -3245,7 +3241,7 @@ class IntegrationService
               array_push($idsCaracteristicas, 28);
             }
           }
-          
+
           if (
             $D['TipoImovel'] == 1 ||
             $D['TipoImovel'] == 2 ||
@@ -3262,7 +3258,7 @@ class IntegrationService
               array_push($idsCaracteristicas, 23);
             }
           }
-          
+
           if (
             $D['TipoImovel'] == 1 ||
             $D['TipoImovel'] == 5 ||
@@ -3286,7 +3282,7 @@ class IntegrationService
               array_push($idsCaracteristicas, 26);
             }
           }
-          
+
           if ($D['TipoImovel'] == 1 || $D['TipoImovel'] == 8 || $D['TipoImovel'] == 12) {
             if (!empty($D['VarandaTecnica'])) {
               array_push($idsCaracteristicas, 29);
@@ -3321,7 +3317,7 @@ class IntegrationService
             'slug_bairro' => $slug_bairro,
             'logradouro' => ucwords(mb_strtolower($D['Endereco'])),
             'numero' => $D['Numero'],
-            'bairro_comercial' => ucwords(mb_strtolower($D['BairroComercial'] ?? '')), 
+            'bairro_comercial' => ucwords(mb_strtolower($D['BairroComercial'] ?? '')),
             'complement' => $D['Complemento'],
             'latitude' => $D['Latitude'],
             'longitude' => $D['Longitude'],
@@ -3461,7 +3457,7 @@ class IntegrationService
       ->get();
   }
 
-  
+
 
 
 
@@ -3471,7 +3467,7 @@ class IntegrationService
     return DB::table('condominium_data')->whereIn('ad_id', $adIds)->get();
   }
 
-  
+
 
 
 
@@ -3486,7 +3482,7 @@ class IntegrationService
       ->get();
   }
 
-  
+
 
 
 
@@ -3589,7 +3585,7 @@ class IntegrationService
     if (!file_exists(public_path('images/integration/' . str_replace('integration/', '', $image)))) {
       $img = public_path('images/') . $image;
       file_put_contents($img, file_get_contents($url));
-      
+
       IntegrationService::reduceImage($image);
     } elseif (
       !file_exists(public_path('images/integration/properties/medium/' . str_replace('integration/', '', $image))) ||
@@ -4895,31 +4891,25 @@ class IntegrationService
 
   public static function remove_emoji($string)
   {
-    
+
     $regex_alphanumeric = '/[\x{1F100}-\x{1F1FF}]/u';
     $clear_string = preg_replace($regex_alphanumeric, '', $string);
 
-    
     $regex_symbols = '/[\x{1F300}-\x{1F5FF}]/u';
     $clear_string = preg_replace($regex_symbols, '', $clear_string);
 
-    
     $regex_emoticons = '/[\x{1F600}-\x{1F64F}]/u';
     $clear_string = preg_replace($regex_emoticons, '', $clear_string);
 
-    
     $regex_transport = '/[\x{1F680}-\x{1F6FF}]/u';
     $clear_string = preg_replace($regex_transport, '', $clear_string);
 
-    
     $regex_supplemental = '/[\x{1F900}-\x{1F9FF}]/u';
     $clear_string = preg_replace($regex_supplemental, '', $clear_string);
 
-    
     $regex_misc = '/[\x{2600}-\x{26FF}]/u';
     $clear_string = preg_replace($regex_misc, '', $clear_string);
 
-    
     $regex_dingbats = '/[\x{2700}-\x{27BF}]/u';
     $clear_string = preg_replace($regex_dingbats, '', $clear_string);
 
@@ -4934,7 +4924,7 @@ class IntegrationService
       return '';
     }
     $ini += strlen($start);
-    
+
     $last = strpos($string, $end, $ini);
     if ($last == 0) {
       return '';
@@ -4981,21 +4971,21 @@ class IntegrationService
     if (file_exists($thumbnailpath)) {
       copy($thumbnailpath, public_path('images/integration/properties/small/' . $nome_img));
       copy($thumbnailpath, public_path('images/integration/properties/medium/' . $nome_img));
-      
+
       $img = Image::make(public_path('images/integration/properties/medium/' . $nome_img))
         ->orientate()
         ->resize(360, 280, function ($constraint) {
           $constraint->aspectRatio();
         });
       $img->save(public_path('images/integration/properties/medium/' . $nome_img));
-      
+
       $img = Image::make(public_path('images/integration/properties/small/' . $nome_img))
         ->orientate()
         ->resize(280, 250, function ($constraint) {
           $constraint->aspectRatio();
         });
       $img->save(public_path('images/integration/properties/small/' . $nome_img));
-      
+
       $img = Image::make($thumbnailpath)
         ->orientate()
         ->resize(768, 432, function ($constraint) {

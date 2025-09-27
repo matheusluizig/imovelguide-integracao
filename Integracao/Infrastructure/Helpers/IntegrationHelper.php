@@ -2,10 +2,9 @@
 
 namespace App\Integracao\Infrastructure\Helpers;
 
-
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\DB;
-use Throwable; 
+use Throwable
 
 class IntegrationHelper {
     public static function getQueuesIntegration($sqlResult) {
@@ -36,7 +35,7 @@ class IntegrationHelper {
             }
         }
 
-        return $jobs; 
+        return $jobs;
     }
 
     public static function getLinkInfo($link) {
@@ -45,14 +44,13 @@ class IntegrationHelper {
             return $info;
         }
 
-        
         $cacheKey = 'link_info_' . md5($link);
         if (cache()->has($cacheKey)) {
             return cache()->get($cacheKey);
         }
 
         try {
-            $response = Http::timeout(60) 
+            $response = Http::timeout(60)
                 ->withHeaders([
                     'User-Agent' => 'ImovelGuide/1.0 (XML Integration Service; +https://imovelguide.com.br)'
                 ])
@@ -69,7 +67,7 @@ class IntegrationHelper {
         $info['code'] = $statusCode;
         if (!$statusCode || $statusCode !== 200) {
             $info['fileType'] = 'Link inválido.';
-            cache()->put($cacheKey, $info, now()->addMinutes(30)); 
+            cache()->put($cacheKey, $info, now()->addMinutes(30));
             return $info;
         }
 
@@ -87,7 +85,7 @@ class IntegrationHelper {
         }
 
         if ($fileSize !== false) {
-            $info['size'] = Self::formatBytes(intval($fileSize[0]));
+            $info['size'] = self::formatBytes(intval($fileSize[0]));
         }
 
         cache()->put($cacheKey, $info, now()->addMinutes(30));
@@ -98,7 +96,7 @@ class IntegrationHelper {
         if ($bytes > 0) {
             $i = floor(log($bytes) / log(1024));
             $sizes = array('Bytes', 'KBytes', 'MBytes', 'GBytes', 'TBytes', 'PBytes', 'EBytes', 'ZBytes', 'YBytes');
-            return sprintf('%.02F', round($bytes / pow(1024, $i),1)) * 1 . ' ' . @$sizes[$i];
+            return sprintf('%.02F', round($bytes / pow(1024, $i), 1)) * 1 . ' ' . @$sizes[$i];
         } else {
             return 0;
         }

@@ -25,7 +25,6 @@ class AutomaticNormalIntegration extends Command
             $cacheKey = 'last_normal_integration_run';
             $isLight = $this->option('light');
 
-            
             if ($isLight) {
                 $searchFrom = now()->subHours(1);
                 $this->info('⚡ Modo LIGHT: Processando última hora');
@@ -35,7 +34,6 @@ class AutomaticNormalIntegration extends Command
                 $this->info('🔄 Modo NORMAL: Processando desde última execução');
             }
 
-            
             $integrations = Integracao::join('integrations_queues', 'integracao_xml.id', '=', 'integrations_queues.integration_id')
                 ->join('users', 'integracao_xml.user_id', '=', 'users.id')
                 ->where('integracao_xml.status', Integracao::XML_STATUS_NOT_INTEGRATED)
@@ -45,7 +43,7 @@ class AutomaticNormalIntegration extends Command
                 ->where('integracao_xml.updated_at', '>=', $searchFrom)
                 ->select('integracao_xml.*')
                 ->orderBy('integracao_xml.updated_at', 'desc')
-                ->limit(20) 
+                ->limit(20)
                 ->get();
 
             if ($integrations->isEmpty()) {
@@ -56,12 +54,11 @@ class AutomaticNormalIntegration extends Command
 
             $this->info("📊 Encontradas {$integrations->count()} integrações normais pendentes");
 
-            
             $activeJobs = DB::table('jobs')
                 ->where('queue', 'normal-integrations')
                 ->count();
 
-            $maxJobs = 3; 
+            $maxJobs = 6;
             $availableSlots = max(0, $maxJobs - $activeJobs);
 
             if ($availableSlots === 0) {
@@ -71,30 +68,27 @@ class AutomaticNormalIntegration extends Command
 
             $this->info("🔄 Slots disponíveis: {$availableSlots}");
 
-            
             $processed = 0;
-            $chunkSize = min($availableSlots, 5); 
+            $chunkSize = min($availableSlots, 5);
             $integrationIds = $integrations->take($chunkSize)->pluck('id')->toArray();
 
-            
             $existingJobs = DB::table('jobs')
                 ->where('queue', 'normal-integrations')
                 ->whereIn(DB::raw('JSON_UNQUOTE(JSON_EXTRACT(payload, "$.integrationId"))'), $integrationIds)
                 ->pluck(DB::raw('JSON_UNQUOTE(JSON_EXTRACT(payload, "$.integrationId"))'))
                 ->map(function($id) {
-                    return (int) $id; 
+                    return (int) $id;
                 })
                 ->toArray();
 
             foreach ($integrations->take($chunkSize) as $integration) {
                 try {
-                    
+
                     if (in_array($integration->id, $existingJobs)) {
                         $this->line("⏭️ Integração {$integration->id} já está na fila");
                         continue;
                     }
 
-                    
                     ProcessIntegrationJob::dispatch($integration->id, 'normal-integrations');
                     $processed++;
 
@@ -109,7 +103,6 @@ class AutomaticNormalIntegration extends Command
                 }
             }
 
-            
             Cache::put($cacheKey, now()->toDateTimeString(), 3600);
 
             $executionTime = round(microtime(true) - $startTime, 2);

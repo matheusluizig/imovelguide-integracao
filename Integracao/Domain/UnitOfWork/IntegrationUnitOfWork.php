@@ -4,8 +4,6 @@ namespace App\Integracao\Domain\UnitOfWork;
 
 use App\Integracao\Domain\Entities\Integracao;
 use App\Integracao\Domain\Entities\IntegrationsQueues;
-use App\Integracao\Domain\Entities\IntegrationRun;
-use App\Integracao\Domain\Entities\IntegrationRunChunk;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Collection;
 use Carbon\Carbon;
@@ -21,10 +19,10 @@ class IntegrationUnitOfWork
             'model' => $integration,
             'data' => $data
         ];
-        
+
         return $this;
     }
-    
+
     public function registerQueue(IntegrationsQueues $queue, array $data): self
     {
         $this->pendingOperations[] = [
@@ -32,36 +30,14 @@ class IntegrationUnitOfWork
             'model' => $queue,
             'data' => $data
         ];
-        
+
         return $this;
     }
-    
-    public function registerRun(IntegrationRun $run, array $data): self
-    {
-        $this->pendingOperations[] = [
-            'type' => 'run',
-            'model' => $run,
-            'data' => $data
-        ];
-        
-        return $this;
-    }
-    
-    public function registerChunk(IntegrationRunChunk $chunk, array $data): self
-    {
-        $this->pendingOperations[] = [
-            'type' => 'chunk',
-            'model' => $chunk,
-            'data' => $data
-        ];
-        
-        return $this;
-    }
-    
+
+
     public function registerStatusUpdate(
-        Integracao $integration, 
-        ?IntegrationsQueues $queue = null, 
-        ?IntegrationRun $run = null,
+        Integracao $integration,
+        ?IntegrationsQueues $queue = null,
         ?int $status = null,
         array $additionalData = []
     ): self {
@@ -69,61 +45,49 @@ class IntegrationUnitOfWork
         $integrationData = array_merge([
             'updated_at' => $now
         ], $additionalData);
-        
+
         if ($status !== null) {
             $integrationData['status'] = $status;
         }
-        
+
         $this->registerIntegration($integration, $integrationData);
-        
+
         if ($queue) {
             $queueData = array_merge([
                 'updated_at' => now()
             ], $additionalData);
-            
+
             if ($status !== null) {
                 $queueData['status'] = $this->mapIntegrationStatusToQueueStatus($status);
             }
-            
+
             $this->registerQueue($queue, $queueData);
         }
-        
-        if ($run) {
-            $runData = array_merge([
-                'updated_at' => now()
-            ], $additionalData);
-            
-            if ($status !== null) {
-                $runData['status'] = $this->mapIntegrationStatusToRunStatus($status);
-            }
-            
-            $this->registerRun($run, $runData);
-        }
-        
+
         return $this;
     }
-    
+
     public function commit(): void
     {
         if ($this->isCommitted) {
             throw new \RuntimeException('UnitOfWork já foi committed');
         }
-        
+
         if (empty($this->pendingOperations)) {
             $this->isCommitted = true;
             return;
         }
-        
+
         DB::transaction(function () {
             foreach ($this->pendingOperations as $operation) {
                 $operation['model']->update($operation['data']);
             }
         });
-        
+
         $this->pendingOperations = [];
         $this->isCommitted = true;
     }
-    
+
     private function mapIntegrationStatusToQueueStatus(int $integrationStatus): int
     {
         return match ($integrationStatus) {
@@ -139,20 +103,5 @@ class IntegrationUnitOfWork
             default => IntegrationsQueues::STATUS_PENDING
         };
     }
-    
-    private function mapIntegrationStatusToRunStatus(int $integrationStatus): string
-    {
-        return match ($integrationStatus) {
-            Integracao::XML_STATUS_INTEGRATED => 'done',
-            Integracao::XML_STATUS_IN_ANALYSIS,
-            Integracao::XML_STATUS_PROGRAMMERS_SOLVE,
-            Integracao::XML_STATUS_CRM_ERRO,
-            Integracao::XML_STATUS_LINKS_NOT_WORKING,
-            Integracao::XML_STATUS_WRONG_MODEL => 'error',
-            Integracao::XML_STATUS_IN_UPDATE_BOTH,
-            Integracao::XML_STATUS_IN_DATA_UPDATE,
-            Integracao::XML_STATUS_IN_IMAGE_UPDATE => 'running',
-            default => 'pending'
-        };
-    }
+
 }

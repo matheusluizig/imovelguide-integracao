@@ -31,7 +31,7 @@ class DiagnoseIntegrationJobs extends Command
         }
 
         $this->checkSystemHealth();
-        
+
         if ($this->option('check-redis')) {
             $this->checkRedisState();
         }
@@ -137,7 +137,7 @@ class DiagnoseIntegrationJobs extends Command
                     'method' => 'HEAD'
                 ]
             ]);
-            
+
             $headers = @get_headers($integration->link, 1, $context);
             if ($headers === false) {
                 $this->error("❌ Não foi possível conectar à URL");
@@ -155,11 +155,11 @@ class DiagnoseIntegrationJobs extends Command
             $redis = Redis::connection();
             $activeSlots = $redis->smembers('imovelguide_database_active_integrations');
             $slotsCount = (int) ($redis->get('imovelguide_database_active_integrations_count') ?: 0);
-            
+
             $this->info("✅ Slots Redis:");
             $this->info("   - Slots ativos: {$slotsCount}");
             $this->info("   - Integrações ativas: " . implode(', ', $activeSlots ?: ['Nenhuma']));
-            
+
             if (in_array($integrationId, $activeSlots)) {
                 $this->warn("⚠️  Esta integração já está ativa no Redis");
             }
@@ -181,33 +181,288 @@ class DiagnoseIntegrationJobs extends Command
 
     private function checkSystemHealth(): void
     {
-        $this->info('🏥 Verificando saúde do sistema...');
+        $this->info('🏥 DIAGNÓSTICO COMPLETO DO SISTEMA');
+        $this->newLine();
 
-        // Database
+        $this->checkDatabaseHealth();
+        $this->checkRedisHealth();
+        $this->checkActiveWorkers();
+        $this->checkQueueStatus();
+        $this->checkIntegrationProgress();
+        $this->showNext10InQueue();
+    }
+
+    private function checkDatabaseHealth(): void
+    {
+        $this->info('💾 STATUS DO BANCO DE DADOS');
+
         try {
-            $integrationCount = Integracao::count();
-            $queueCount = IntegrationsQueues::count();
-            $this->info("✅ Database: {$integrationCount} integrações, {$queueCount} filas");
-        } catch (\Exception $e) {
-            $this->error("❌ Database error: " . $e->getMessage());
-        }
+            $stats = [
+                'Total Integrações' => Integracao::count(),
+                'Integrações Ativas' => Integracao::whereHas('user', fn($q) => $q->where('inative', 0))->count(),
+                'Filas Pendentes' => IntegrationsQueues::where('status', IntegrationsQueues::STATUS_PENDING)->count(),
+                'Filas Processando' => IntegrationsQueues::where('status', IntegrationsQueues::STATUS_IN_PROCESS)->count(),
+                'Filas com Erro' => IntegrationsQueues::where('status', IntegrationsQueues::STATUS_ERROR)->count(),
+                'Filas Paradas' => IntegrationsQueues::where('status', IntegrationsQueues::STATUS_STOPPED)->count(),
+                'Concluídas Hoje' => IntegrationsQueues::where('status', IntegrationsQueues::STATUS_DONE)
+                    ->whereDate('completed_at', today())->count()
+            ];
 
-        // Redis
+            $rows = array_map(fn($key, $value) => [$key, $value], array_keys($stats), array_values($stats));
+            $this->table(['Métrica', 'Valor'], $rows);
+
+        } catch (\Exception $e) {
+            $this->error("❌ Erro no banco: " . $e->getMessage());
+        }
+    }
+
+    private function checkRedisHealth(): void
+    {
+        $this->info('🔴 STATUS DO REDIS');
+
         try {
             $redis = Redis::connection();
-            $redis->ping();
-            $this->info("✅ Redis: Conectado");
+            $info = $redis->info();
+
+            $stats = [
+                'Conectividade' => 'OK',
+                'Versão' => $info['redis_version'] ?? 'N/A',
+                'Uptime' => gmdate('H:i:s', $info['uptime_in_seconds'] ?? 0),
+                'Memória Usada' => $this->formatBytes($info['used_memory'] ?? 0),
+                'Conexões' => $info['connected_clients'] ?? 0,
+                'Total Comandos' => number_format($info['total_commands_processed'] ?? 0)
+            ];
+
+            $rows = array_map(fn($key, $value) => [$key, $value], array_keys($stats), array_values($stats));
+            $this->table(['Métrica', 'Valor'], $rows);
+
         } catch (\Exception $e) {
-            $this->error("❌ Redis error: " . $e->getMessage());
+            $this->error("❌ Redis indisponível: " . $e->getMessage());
+        }
+    }
+
+    private function checkActiveWorkers(): void
+    {
+        $this->info('👷 WORKERS ATIVOS');
+
+        try {
+            $redis = Redis::connection();
+
+            $integrationQueues = [
+                'priority-integrations' => 'Planos',
+                'level-integrations' => 'Níveis',
+                'normal-integrations' => 'Normais'
+            ];
+
+            $totalWorkers = 0;
+            $workerDetails = [];
+
+            foreach ($integrationQueues as $queueName => $description) {
+                $queueLength = $redis->llen("queues:{$queueName}");
+                $processingCount = $this->getProcessingJobsCount($queueName);
+                $totalWorkers += $processingCount;
+
+                $workerDetails[] = [
+                    $description,
+                    $processingCount,
+                    $queueLength,
+                    $processingCount > 0 ? '🟢 Ativo' : ($queueLength > 0 ? '🟡 Aguardando' : '⚫ Ocioso')
+                ];
+            }
+
+            $this->table(['Fila', 'Workers Ativos', 'Jobs na Fila', 'Status'], $workerDetails);
+            $this->info("📊 Total de workers ativos: {$totalWorkers}");
+
+        } catch (\Exception $e) {
+            $this->error("❌ Erro ao verificar workers: " . $e->getMessage());
+        }
+    }
+
+    private function getProcessingJobsCount(string $queueName): int
+    {
+        try {
+            // Para filas Redis, verificar processos ativos do queue:work
+            $command = "ps aux | grep 'queue:work.*{$queueName}' | grep -v grep | wc -l";
+            $result = shell_exec($command);
+            return (int) trim($result);
+        } catch (\Exception $e) {
+            return 0;
+        }
+    }
+
+    private function checkQueueStatus(): void
+    {
+        $this->info('📋 STATUS DAS FILAS (DADOS REAIS DO REDIS)');
+
+        try {
+            $redis = Redis::connection();
+
+            $queueStats = [];
+            $integrationQueues = [
+                'priority-integrations' => 'Planos',
+                'level-integrations' => 'Níveis',
+                'normal-integrations' => 'Normais',
+                'default' => 'Padrão'
+            ];
+
+            foreach ($integrationQueues as $queueName => $description) {
+                $waiting = $redis->llen("queues:{$queueName}");
+                $delayed = $redis->zcard("queues:{$queueName}:delayed");
+                $processing = $this->getProcessingJobsCount($queueName);
+                $failed = $this->getFailedJobsCount($queueName);
+
+                $queueStats[] = [
+                    $description,
+                    $waiting,
+                    $processing,
+                    $delayed,
+                    $failed,
+                    $processing > 0 ? '🔄' : ($waiting > 0 ? '⏳' : '✅')
+                ];
+            }
+
+            $this->table([
+                'Fila',
+                'Aguardando',
+                'Processando',
+                'Atrasados',
+                'Falhados',
+                'Status'
+            ], $queueStats);
+
+        } catch (\Exception $e) {
+            $this->error("❌ Erro ao verificar filas: " . $e->getMessage());
+        }
+    }
+
+    private function getFailedJobsCount(string $queueName): int
+    {
+        try {
+            return DB::table('failed_jobs')
+                ->where('queue', $queueName)
+                ->whereDate('failed_at', today())
+                ->count();
+        } catch (\Exception $e) {
+            return 0;
+        }
+    }
+
+    private function checkIntegrationProgress(): void
+    {
+        $this->info('📊 INTEGRAÇÕES EM PROCESSAMENTO');
+
+        try {
+            $processing = IntegrationsQueues::with(['integracaoXml.user'])
+                ->where('status', IntegrationsQueues::STATUS_IN_PROCESS)
+                ->where('started_at', '>', now()->subHours(2))
+                ->get();
+
+            if ($processing->isEmpty()) {
+                $this->info('✅ Nenhuma integração sendo processada no momento');
+                return;
+            }
+
+            $progressData = [];
+            foreach ($processing as $queue) {
+                $integration = $queue->integracaoXml;
+                if (!$integration) { continue;
+                }
+
+                $duration = $queue->started_at ? $queue->started_at->diffInMinutes(now()) : 0;
+                $progress = $this->estimateProgress($queue, $duration);
+
+                $progressData[] = [
+                    $integration->id,
+                    substr($integration->user->name ?? 'N/A', 0, 20),
+                    $this->getPriorityName($queue->priority),
+                    $duration . 'min',
+                    $progress . '%',
+                    $queue->attempts ?? 1
+                ];
+            }
+
+            $this->table([
+                'ID Int.',
+                'Usuário',
+                'Prioridade',
+                'Tempo',
+                'Progresso Est.',
+                'Tentativa'
+            ], $progressData);
+
+        } catch (\Exception $e) {
+            $this->error("❌ Erro ao verificar progresso: " . $e->getMessage());
+        }
+    }
+
+    private function estimateProgress(IntegrationsQueues $queue, int $durationMinutes): int
+    {
+        $avgProcessingTime = 5;
+        if ($durationMinutes >= $avgProcessingTime) {
+            return 95;
         }
 
-        // Queue jobs
+        return min(90, ($durationMinutes / $avgProcessingTime) * 100);
+    }
+
+    private function showNext10InQueue(): void
+    {
+        $this->info('🔮 PRÓXIMAS 10 INTEGRAÇÕES NA FILA (DADOS REAIS DO REDIS)');
+
         try {
-            $pendingJobs = DB::table('jobs')->count();
-            $failedJobs = DB::table('failed_jobs')->count();
-            $this->info("✅ Queue: {$pendingJobs} jobs pendentes, {$failedJobs} jobs falhados");
+            $redis = Redis::connection();
+            $queueData = [];
+
+            $integrationQueues = [
+                'priority-integrations' => 'Planos',
+                'level-integrations' => 'Níveis',
+                'normal-integrations' => 'Normais'
+            ];
+
+            foreach ($integrationQueues as $queueName => $description) {
+                $jobs = $redis->lrange("queues:{$queueName}", 0, 9);
+
+                foreach ($jobs as $index => $job) {
+                    $payload = json_decode($job, true);
+                    $integrationId = $payload['data']['integrationId'] ?? 'N/A';
+
+                    if ($integrationId !== 'N/A') {
+                        $integration = Integracao::with('user')->find($integrationId);
+                        $userName = $integration->user->name ?? 'N/A';
+                    } else {
+                        $userName = 'N/A';
+                    }
+
+                    $queueData[] = [
+                        $index + 1,
+                        $description,
+                        $integrationId,
+                        substr($userName, 0, 20),
+                        isset($payload['attempts']) ? $payload['attempts'] : 0,
+                        $payload['id'] ?? 'N/A'
+                    ];
+
+                    if (count($queueData) >= 10) { break 2;
+                    }
+                }
+            }
+
+            if (empty($queueData)) {
+                $this->info('✅ Nenhum job na fila no momento');
+                return;
+            }
+
+            $this->table([
+                'Pos.',
+                'Fila',
+                'ID Int.',
+                'Usuário',
+                'Tentativas',
+                'Job ID'
+            ], $queueData);
+
         } catch (\Exception $e) {
-            $this->error("❌ Queue error: " . $e->getMessage());
+            $this->error("❌ Erro ao verificar próximos jobs: " . $e->getMessage());
         }
     }
 
@@ -217,10 +472,10 @@ class DiagnoseIntegrationJobs extends Command
 
         try {
             $redis = Redis::connection();
-            
+
             $activeSlots = $redis->smembers('imovelguide_database_active_integrations');
             $slotsCount = (int) ($redis->get('imovelguide_database_active_integrations_count') ?: 0);
-            
+
             $this->table(['Métrica', 'Valor'], [
                 ['Slots ativos (contador)', $slotsCount],
                 ['Slots ativos (set)', count($activeSlots)],
@@ -230,7 +485,7 @@ class DiagnoseIntegrationJobs extends Command
 
             if ($slotsCount !== count($activeSlots)) {
                 $this->warn('⚠️  Inconsistência detectada entre contador e set Redis!');
-                
+
                 if ($this->confirm('Deseja corrigir a inconsistência?')) {
                     $redis->set('imovelguide_database_active_integrations_count', count($activeSlots));
                     $this->info('✅ Inconsistência corrigida');
@@ -260,7 +515,7 @@ class DiagnoseIntegrationJobs extends Command
         foreach ($failedJobs as $job) {
             $payload = json_decode($job->payload, true);
             $exception = json_decode($job->exception, true);
-            
+
             $this->warn("❌ Job falhado: {$job->failed_at}");
             $this->info("   Queue: {$job->queue}");
             $this->info("   Class: " . ($payload['displayName'] ?? 'Unknown'));
@@ -289,13 +544,13 @@ class DiagnoseIntegrationJobs extends Command
 
         try {
             $job = new ProcessIntegrationJob($integration->id);
-            
+
             $startTime = microtime(true);
             $job->handle();
             $endTime = microtime(true);
-            
+
             $this->info("✅ Job executado com sucesso em " . number_format($endTime - $startTime, 3) . 's');
-            
+
         } catch (\Exception $e) {
             $this->error("❌ Job falhou: " . $e->getMessage());
             $this->info("Arquivo: " . $e->getFile() . ':' . $e->getLine());
@@ -308,24 +563,24 @@ class DiagnoseIntegrationJobs extends Command
 
         try {
             $job = new ProcessIntegrationJob($integrationId);
-            
+
             $startTime = microtime(true);
             $startMemory = memory_get_usage(true);
-            
+
             $job->handle();
-            
+
             $endTime = microtime(true);
             $endMemory = memory_get_usage(true);
-            
+
             $this->info("✅ Job executado com sucesso:");
             $this->info("   - Tempo: " . number_format($endTime - $startTime, 3) . 's');
             $this->info("   - Memória: " . $this->formatBytes($endMemory - $startMemory));
-            
+
         } catch (\Exception $e) {
             $this->error("❌ Job falhou: " . $e->getMessage());
             $this->error("   - Arquivo: " . $e->getFile() . ':' . $e->getLine());
             $this->error("   - Tipo: " . get_class($e));
-            
+
             if ($this->output->isVerbose()) {
                 $this->error("   - Trace:");
                 $this->error($e->getTraceAsString());
@@ -339,21 +594,21 @@ class DiagnoseIntegrationJobs extends Command
 
         try {
             $redis = Redis::connection();
-            
+
             // Clear integration processing locks
             $keys = $redis->keys('integration_processing_*');
             if (!empty($keys)) {
                 $redis->del($keys);
                 $this->info("✅ Removidos " . count($keys) . " locks de processamento");
             }
-            
+
             // Clear other integration locks
             $keys = $redis->keys('*integration*lock*');
             if (!empty($keys)) {
                 $redis->del($keys);
                 $this->info("✅ Removidos " . count($keys) . " locks gerais");
             }
-            
+
         } catch (\Exception $e) {
             $this->error("❌ Erro ao limpar locks: " . $e->getMessage());
         }

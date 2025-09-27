@@ -73,7 +73,6 @@ abstract class XMLBaseParser
     $this->updateType = Integracao::XML_STATUS_IN_UPDATE_BOTH;
     $this->LPPService = new LevelsPlansPermissionService();
 
-    
     $this->cacheUserData();
   }
 
@@ -82,7 +81,6 @@ abstract class XMLBaseParser
     if ($this->integration && $this->integration->user) {
       $user = $this->integration->user;
 
-      
       $this->userData = [
         'id' => $user->id,
         'level' => $user->level ?? 0,
@@ -116,7 +114,7 @@ abstract class XMLBaseParser
     return self::DEFAULT_TYPE_IMOVEL;
   }
 
-  
+
   public function setOptions(array $options): void
   {
     foreach ($options as $key => $value) {
@@ -142,7 +140,7 @@ abstract class XMLBaseParser
     }
   }
 
-  
+
   public function parser(): void
   {
     try {
@@ -157,7 +155,7 @@ abstract class XMLBaseParser
     }
   }
 
-  
+
   public function prepareData(): void
   {
     try {
@@ -172,7 +170,7 @@ abstract class XMLBaseParser
     }
   }
 
-  
+
   public function insertData(): void
   {
     try {
@@ -187,19 +185,19 @@ abstract class XMLBaseParser
     }
   }
 
-  
+
   public function getImoveisCount(): int
   {
     return $this->imoveisCount;
   }
 
-  
+
   public function getImoveisMade(): int
   {
     return $this->quantityMade;
   }
 
-  
+
   protected function isDifferentImovel($existingImovel, $data): bool
   {
     return $existingImovel->type_id != $data['type_id'] ||
@@ -228,7 +226,7 @@ abstract class XMLBaseParser
       $existingImovel->xml != 1;
   }
 
-  
+
   protected function isDifferentCondominium($existingCondominium, $condominiumData): bool
   {
     return $existingCondominium->condominiun_id != $condominiumData['condominiun_id'] ||
@@ -240,7 +238,7 @@ abstract class XMLBaseParser
       $existingCondominium->terrain_size != $condominiumData['terrain_size'];
   }
 
-  
+
   protected function isDifferentLocation($condLocation, $checkLocation): bool
   {
     return $condLocation->mostrar_endereco != $checkLocation['mostrar_endereco'] ||
@@ -288,30 +286,46 @@ abstract class XMLBaseParser
   protected function reduceImage($s3Path, $imageFileName)
   {
     try {
+      // Remove o prefixo 'integration/' e a extensão '.webp' para evitar duplicação
       $cleanImageName = str_replace('integration/', '', $imageFileName);
+      $cleanImageName = pathinfo($cleanImageName, PATHINFO_FILENAME); // Remove extensão
 
-      
       if (!Storage::disk('do_spaces')->exists($s3Path)) {
         return;
       }
 
-      
       $imageData = Storage::disk('do_spaces')->get($s3Path);
       $tempPath = tempnam(sys_get_temp_dir(), 'integration_img_');
       file_put_contents($tempPath, $imageData);
 
-      
       $img = Image::make($tempPath)
         ->orientate()
         ->resize(768, 432, function ($constraint) {
           $constraint->aspectRatio();
         });
 
-      
       $largeData = $img->encode('webp', 85)->getEncoded();
-      Storage::disk('do_spaces')->put($s3Path, $largeData, 'public');
-
       
+      // Log upload da imagem large
+      \Log::channel('integration')->info("📤 S3: Starting large image upload", [
+          's3_path' => $s3Path,
+          'image_size_bytes' => strlen($largeData),
+          'image_dimensions' => [
+              'width' => $img->width(),
+              'height' => $img->height()
+          ]
+      ]);
+      
+      $uploadStartTime = microtime(true);
+      Storage::disk('do_spaces')->put($s3Path, $largeData, 'public');
+      $uploadTime = microtime(true) - $uploadStartTime;
+      
+      \Log::channel('integration')->info("✅ S3: Large image upload successful", [
+          's3_path' => $s3Path,
+          'upload_time_seconds' => round($uploadTime, 3),
+          'upload_speed_mbps' => round((strlen($largeData) / 1024 / 1024) / $uploadTime, 2)
+      ]);
+
       $smallImg = Image::make($tempPath)
         ->orientate()
         ->resize(280, 250, function ($constraint) {
@@ -319,9 +333,23 @@ abstract class XMLBaseParser
         });
 
       $smallData = $smallImg->encode('webp', 85)->getEncoded();
-      Storage::disk('do_spaces')->put("images/integration/properties/small/{$cleanImageName}.webp", $smallData, 'public');
-
+      $smallPath = "images/integration/properties/small/{$cleanImageName}.webp";
       
+      // Log upload da imagem small
+      \Log::channel('integration')->info("📤 S3: Starting small image upload", [
+          's3_path' => $smallPath,
+          'image_size_bytes' => strlen($smallData)
+      ]);
+      
+      $uploadStartTime = microtime(true);
+      Storage::disk('do_spaces')->put($smallPath, $smallData, 'public');
+      $uploadTime = microtime(true) - $uploadStartTime;
+      
+      \Log::channel('integration')->info("✅ S3: Small image upload successful", [
+          's3_path' => $smallPath,
+          'upload_time_seconds' => round($uploadTime, 3)
+      ]);
+
       $mediumImg = Image::make($tempPath)
         ->orientate()
         ->resize(360, 280, function ($constraint) {
@@ -329,16 +357,120 @@ abstract class XMLBaseParser
         });
 
       $mediumData = $mediumImg->encode('webp', 85)->getEncoded();
-      Storage::disk('do_spaces')->put("images/integration/properties/medium/{$cleanImageName}.webp", $mediumData, 'public');
-
+      $mediumPath = "images/integration/properties/medium/{$cleanImageName}.webp";
       
+      // Log upload da imagem medium
+      \Log::channel('integration')->info("📤 S3: Starting medium image upload", [
+          's3_path' => $mediumPath,
+          'image_size_bytes' => strlen($mediumData)
+      ]);
+      
+      $uploadStartTime = microtime(true);
+      Storage::disk('do_spaces')->put($mediumPath, $mediumData, 'public');
+      $uploadTime = microtime(true) - $uploadStartTime;
+      
+      \Log::channel('integration')->info("✅ S3: Medium image upload successful", [
+          's3_path' => $mediumPath,
+          'upload_time_seconds' => round($uploadTime, 3)
+      ]);
+
       unlink($tempPath);
 
     } catch (\Exception $e) {
-      \Log::error('Erro ao redimensionar imagem de integração: ' . $e->getMessage(), [
-        's3Path' => $s3Path,
-        'imageFileName' => $imageFileName,
+      \Log::channel('integration')->error('❌ S3: Image resize/upload failed', [
+        'integration_id' => $this->integration->id ?? null,
+        'image_name' => $imageFileName,
+        's3_path' => $s3Path ?? 'unknown',
+        'error' => $e->getMessage(),
+        'error_type' => get_class($e),
+        'error_file' => $e->getFile(),
+        'error_line' => $e->getLine(),
+        'memory_usage' => memory_get_usage(true)
       ]);
+    }
+  }
+
+  /**
+   * Insere ou atualiza imagens evitando duplicatas
+   */
+  protected function insertOrUpdateImages(int $anuncioId, array $imagesToInsert, string $operation = 'inserted'): void
+  {
+    try {
+      $insertedCount = 0;
+      $updatedCount = 0;
+      $skippedCount = 0;
+
+      foreach ($imagesToInsert as $imageData) {
+        $imageName = $imageData['name'];
+        
+        // Verificar se a imagem já existe para este anúncio
+        $existingImage = \App\AnuncioImages::where('anuncio_id', $anuncioId)
+            ->where('name', $imageName)
+            ->first();
+
+        if ($existingImage) {
+            // Atualizar registro existente
+            $existingImage->update([
+                'updated_at' => $imageData['created_at'],
+                'order' => $insertedCount + $updatedCount + $skippedCount
+            ]);
+            $updatedCount++;
+            
+            \Log::channel('integration')->debug("🔄 IMAGE: Updated existing image", [
+                'integration_id' => $this->integration->id ?? null,
+                'anuncio_id' => $anuncioId,
+                'image_name' => $imageName,
+                'operation' => 'updated'
+            ]);
+        } else {
+            // Inserir nova imagem
+            $imageData['order'] = $insertedCount + $updatedCount + $skippedCount;
+            \App\AnuncioImages::create($imageData);
+            $insertedCount++;
+            
+            \Log::channel('integration')->debug("➕ IMAGE: Inserted new image", [
+                'integration_id' => $this->integration->id ?? null,
+                'anuncio_id' => $anuncioId,
+                'image_name' => $imageName,
+                'operation' => 'inserted'
+            ]);
+        }
+      }
+
+      \Log::channel('integration')->info("📊 IMAGE: Batch operation completed", [
+          'integration_id' => $this->integration->id ?? null,
+          'anuncio_id' => $anuncioId,
+          'operation' => $operation,
+          'inserted_count' => $insertedCount,
+          'updated_count' => $updatedCount,
+          'total_processed' => count($imagesToInsert)
+      ]);
+
+    } catch (\Exception $e) {
+      \Log::channel('integration')->error("❌ IMAGE: Failed to insert/update images", [
+          'integration_id' => $this->integration->id ?? null,
+          'anuncio_id' => $anuncioId,
+          'operation' => $operation,
+          'error' => $e->getMessage(),
+          'error_type' => get_class($e),
+          'images_count' => count($imagesToInsert)
+      ]);
+      
+      // Fallback: tentar inserção direta se a verificação falhar
+      try {
+        \App\AnuncioImages::insert($imagesToInsert);
+        \Log::channel('integration')->warning("⚠️ IMAGE: Fallback direct insert used", [
+            'integration_id' => $this->integration->id ?? null,
+            'anuncio_id' => $anuncioId,
+            'operation' => 'fallback_insert'
+        ]);
+      } catch (\Exception $fallbackError) {
+        \Log::channel('integration')->error("💀 IMAGE: CRITICAL - Even fallback failed", [
+            'integration_id' => $this->integration->id ?? null,
+            'anuncio_id' => $anuncioId,
+            'fallback_error' => $fallbackError->getMessage()
+        ]);
+      }
     }
   }
 
@@ -347,13 +479,11 @@ abstract class XMLBaseParser
     try {
       $curImageName = str_replace('integration/', '', $imageFileName);
 
-      
       $originalPath = "images/integration/{$curImageName}";
       if (Storage::disk('do_spaces')->exists($originalPath)) {
         Storage::disk('do_spaces')->delete($originalPath);
       }
 
-      
       $mediumPathWebp = "images/integration/properties/medium/{$curImageName}.webp";
       $mediumPathOld = "images/integration/properties/medium/{$curImageName}";
 
@@ -363,7 +493,6 @@ abstract class XMLBaseParser
         Storage::disk('do_spaces')->delete($mediumPathOld);
       }
 
-      
       $smallPathWebp = "images/integration/properties/small/{$curImageName}.webp";
       $smallPathOld = "images/integration/properties/small/{$curImageName}";
 
@@ -464,7 +593,7 @@ abstract class XMLBaseParser
   {
     if ($this->integration->queue) {
       $this->integration->queue->status = IntegrationsQueues::STATUS_IN_PROCESS;
-      $this->integration->queue->started_at = now(); 
+      $this->integration->queue->started_at = now();
       $this->integration->queue->save();
     }
   }
@@ -472,10 +601,10 @@ abstract class XMLBaseParser
   public function endIntegration()
   {
     if ($this->integration->queue) {
-      
+
       if ($this->integration->queue->status != IntegrationsQueues::STATUS_DONE) {
         $this->integration->queue->status = IntegrationsQueues::STATUS_DONE;
-        $this->integration->queue->ended_at = now(); 
+        $this->integration->queue->ended_at = now();
         $this->integration->queue->save();
       }
     }
@@ -485,7 +614,7 @@ abstract class XMLBaseParser
   {
     if ($this->integration->queue) {
       $this->integration->queue->status = IntegrationsQueues::STATUS_ERROR;
-      $this->integration->queue->ended_at = now(); 
+      $this->integration->queue->ended_at = now();
       $this->integration->queue->save();
     }
 
@@ -495,27 +624,23 @@ abstract class XMLBaseParser
 
   public function removeOldData($imovelData)
   {
-    
+
     $userId = $this->userData['id'] ?? $this->integration->user->id;
 
-    
     $currentCodes = collect($imovelData)->pluck('CodigoImovel')->filter()->toArray();
 
-    
     $imoveisXML = Anuncio::with(['gallery', 'anuncioBeneficio', 'endereco'])
       ->where('user_id', $userId)
       ->where('xml', 1)
-      ->whereNotIn('codigo', $currentCodes) 
+      ->whereNotIn('codigo', $currentCodes)
       ->get();
 
     $deletedCount = 0;
     $imageCount = 0;
 
-    
     $imoveisXML->chunk(50)->each(function ($chunk) use (&$deletedCount, &$imageCount) {
       $anuncioIds = $chunk->pluck('id')->toArray();
 
-      
       $imagesToDelete = [];
       foreach ($chunk as $xml) {
         foreach ($xml->gallery as $image) {
@@ -523,24 +648,20 @@ abstract class XMLBaseParser
         }
       }
 
-      
       foreach ($imagesToDelete as $imageName) {
         $this->deleteIntegrationImage($imageName);
         $imageCount++;
       }
 
-      
       DB::table('lista_corretores_da_construtora')->whereIn('anuncio_id', $anuncioIds)->delete();
       DB::table('anuncio_images')->whereIn('anuncio_id', $anuncioIds)->delete();
       DB::table('anuncio_beneficio')->whereIn('anuncio_id', $anuncioIds)->delete();
       DB::table('anuncio_enderecos')->whereIn('anuncio_id', $anuncioIds)->delete();
 
-      
       Anuncio::whereIn('id', $anuncioIds)->delete();
       $deletedCount += count($anuncioIds);
     });
 
-    
     DB::table('anuncios')
       ->where('user_id', $userId)
       ->where('xml', 0)
@@ -549,7 +670,6 @@ abstract class XMLBaseParser
         'status' => 'desativado',
       ]);
 
-    
     DB::table('anuncios')
       ->where('user_id', $userId)
       ->where('xml', 1)
@@ -557,7 +677,6 @@ abstract class XMLBaseParser
         'ig_highlight' => 0,
       ]);
 
-    
     $adsHighlightLimits = $this->LPPService->getAdsLimits($this->integration->user);
     $userAdsLimit = $adsHighlightLimits['limit'] + $adsHighlightLimits['bonus'];
 
@@ -570,7 +689,6 @@ abstract class XMLBaseParser
       ->filter()
       ->toArray();
 
-    
     if (!empty($highlightedAds)) {
       DB::table('anuncios')
         ->where('user_id', $userId)
@@ -579,7 +697,6 @@ abstract class XMLBaseParser
         ->update(['ig_highlight' => 1]);
     }
 
-    
     \Log::info("Old data removal completed", [
       'integration_id' => $this->integration->id,
       'deleted_ads' => $deletedCount,

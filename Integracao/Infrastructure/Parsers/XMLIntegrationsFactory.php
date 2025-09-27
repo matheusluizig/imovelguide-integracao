@@ -25,7 +25,6 @@ class XMLIntegrationsFactory
 
   public function __construct()
   {
-    
   }
 
   public function setIntegrationAndLoadXml(Integracao $integration, $document = null)
@@ -52,8 +51,8 @@ class XMLIntegrationsFactory
         $xmlFirstElement = $this->xml->getDocument()->firstChild;
 
         if ($xmlFirstElement && ($xmlFirstElement->getAttribute('xmlns') || $xmlFirstElement->getAttribute('xsi'))) {
-          $xmlFirstElement->removeAttributeNS($xmlFirstElement->getAttribute('xmlns'), ''); 
-          $xmlFirstElement->removeAttributeNS($xmlFirstElement->getAttribute('xsi'), ''); 
+          $xmlFirstElement->removeAttributeNS($xmlFirstElement->getAttribute('xmlns'), '');
+          $xmlFirstElement->removeAttributeNS($xmlFirstElement->getAttribute('xsi'), '');
           $this->xml->load(
             $this->xml->xml(),
             false,
@@ -81,44 +80,51 @@ class XMLIntegrationsFactory
 
   public function findProvider(): void
   {
-    
     $this->logXmlStructure();
 
-    if ($this->xml->has('ListingDataFeed') && ($this->xml->has('Listings') || count($this->xml->find('ListingDataFeed Listings')) > 0)) {
-      
+    $rootElement = $this->xml->getDocument()->documentElement;
+    $normalize = function(string $name): string {
+      $parts = explode(':', $name);
+      return strtolower(end($parts));
+    };
+    $rootName = $rootElement ? $normalize($rootElement->nodeName) : '';
+    $childNames = [];
+    if ($rootElement) {
+      foreach ($rootElement->childNodes as $child) {
+        if ($child->nodeType === XML_ELEMENT_NODE) {
+          $childNames[] = $normalize($child->nodeName);
+        }
+      }
+    }
+
+    $hasListingDataFeed = $rootName === 'listingdatafeed' || $this->xml->has('ListingDataFeed');
+    $hasListings = in_array('listings', $childNames, true) || $this->xml->has('Listings') || count($this->xml->find('ListingDataFeed Listings')) > 0;
+    $hasProperties = in_array('properties', $childNames, true) || $this->xml->has('Properties');
+
+    if ($hasListingDataFeed && $hasListings) {
       $this->provider = new EnglishGlobalModel($this->xml, $this->integration);
-    } elseif ($this->xml->has('ListingDataFeed') && $this->xml->has('Properties')) {
-      
+    } elseif ($hasListingDataFeed && $hasProperties) {
       $this->provider = new IGModel($this->xml, $this->integration);
     } elseif ($this->xml->has('Union')) {
-      
       $this->provider = new UnionModel($this->xml, $this->integration);
     } elseif ($this->xml->has('publish') && $this->xml->has('properties')) {
-      
       $this->provider = new CreciModel($this->xml, $this->integration);
     } elseif ($this->xml->has('Carga')) {
-      
       $this->provider = new TecImobModel($this->xml, $this->integration);
     } elseif ($this->xml->has('Anuncios')) {
-      
       $this->provider = new VistaModel($this->xml, $this->integration);
-    } elseif ($this->xml->has('imobibrasil')) {
-      
+    } elseif ($this->xml->has('imobibrasil') || $this->isImobiBrasilFormat()) {
       $this->provider = new ImobiBrasilModel($this->xml, $this->integration);
     } elseif ($this->xml->has('OpenNavent')) {
-      
       $this->provider = new OpenNaventModel($this->xml, $this->integration);
     } elseif ($this->xml->has('ad')) {
-      
       $this->provider = new MigMidiaModel($this->xml, $this->integration);
     } else {
       $integrationId = $this->integration ? $this->integration->id : 'N/A';
       $integrationLink = $this->integration ? $this->integration->link : 'N/A';
 
-      
       $xmlStructure = $this->getXmlStructureInfo();
 
-      
       \Illuminate\Support\Facades\Log::channel('integration')->error("XML Provider Not Found", [
         'integration_id' => $integrationId,
         'integration_link' => $integrationLink,
@@ -172,13 +178,7 @@ class XMLIntegrationsFactory
         }
       }
 
-      \Illuminate\Support\Facades\Log::channel('integration')->info("XML Structure Analysis", [
-        'integration_id' => $this->integration->id,
-        'root_element' => $rootName,
-        'child_elements' => array_slice($childElements, 0, 10), 
-        'total_children' => count($childElements),
-        'xml_size' => strlen($this->xml->xml())
-      ]);
+
     } catch (\Exception $e) {
       \Illuminate\Support\Facades\Log::channel('integration')->warning("Failed to analyze XML structure", [
         'integration_id' => $this->integration->id,

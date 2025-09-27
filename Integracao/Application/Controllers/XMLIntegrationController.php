@@ -2,10 +2,8 @@
 
 namespace App\Integracao\Application\Controllers;
 
-
 use App\Integracao\Application\Services\IntegrationValidationService;
 use App\Integracao\Application\Services\IntegrationManagementService;
-
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
@@ -13,10 +11,8 @@ use App\User;
 use App\Crm;
 use Auth;
 use Session;
-
 use App\Integracao\Domain\Entities\IntegrationsQueues;
 use App\Integracao\Domain\Entities\Integracao;
-
 use App\Integracao\Application\Jobs\ProcessIntegrationJob;
 
 class XMLIntegrationController extends Controller
@@ -61,14 +57,12 @@ class XMLIntegrationController extends Controller
         $parsedUrl = preg_replace('/\s*/m', '', $request->url);
         $user = Auth::user();
 
-        
         if (empty($parsedUrl)) {
             DB::table('integracao_xml')->where('user_id', $user->id)->delete();
             Session::put('Sucesso', "Seu Arquivo XML foi apagado com sucesso! Fique tranquilo, todos seus imóveis foram salvos em nosso portal.");
             return redirect()->back();
         }
 
-        
         $validationResult = $this->validationService->validateIntegration($parsedUrl);
 
         if (!$validationResult->isValid()) {
@@ -77,7 +71,6 @@ class XMLIntegrationController extends Controller
             return redirect()->back();
         }
 
-        
         $integrationResult = $this->managementService->createIntegration([
             'user_id' => $user->id,
             'url' => $parsedUrl,
@@ -102,14 +95,12 @@ class XMLIntegrationController extends Controller
 
         $parsedUrl = preg_replace('/\s*/m', '', $request->url);
 
-        
         if (empty($parsedUrl)) {
             DB::table('integracao_xml')->where('user_id', $user->id)->delete();
             Session::put('Sucesso', "Arquivo XML foi apagado com sucesso!");
             return redirect()->back();
         }
 
-        
         $validationResult = $this->validationService->validateIntegration($parsedUrl);
 
         if (!$validationResult->isValid()) {
@@ -118,7 +109,6 @@ class XMLIntegrationController extends Controller
             return redirect()->back();
         }
 
-        
         $crmId = null;
         if (!empty($request->crmInput)) {
             $crm = Crm::where('crm_name', '=', $request->crmInput)->first();
@@ -130,7 +120,6 @@ class XMLIntegrationController extends Controller
             }
         }
 
-        
         $integrationResult = $this->managementService->createIntegration([
             'user_id' => $user->id,
             'url' => $parsedUrl,
@@ -249,7 +238,7 @@ class XMLIntegrationController extends Controller
         return response()->json(['result' => $result]);
     }
 
-    
+
     public function getQueueOverview() {
         $overview = $this->managementService->getQueueOverview();
         return response()->json([

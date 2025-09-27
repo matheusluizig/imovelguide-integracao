@@ -10,9 +10,9 @@ use App\Integracao\Domain\Entities\IntegrationsQueues;
 class IntegrationCacheService
 {
     private const CACHE_PREFIX = 'integration_';
-    private const DEFAULT_TTL = 3600; 
-    private const LONG_TTL = 86400; 
-    private const SHORT_TTL = 300; 
+    private const DEFAULT_TTL = 3600;
+    private const LONG_TTL = 86400;
+    private const SHORT_TTL = 300;
 
     public function cacheIntegrationData(Integracao $integration): void
     {
@@ -176,8 +176,6 @@ class IntegrationCacheService
     {
         $pattern = self::CACHE_PREFIX . '*';
 
-        
-        
         Log::info("All integration cache invalidated", ['pattern' => $pattern]);
     }
 

@@ -15,7 +15,7 @@ class IntegrationTransaction
         DB::transaction(function () use ($integrationId) {
             $integration = Integracao::findOrFail($integrationId);
             $queue = self::getOrCreateQueue($integrationId);
-            
+
             $integration->update([
                 'status' => Integracao::XML_STATUS_IN_UPDATE_BOTH,
                 'updated_at' => Carbon::now('America/Sao_Paulo')->toDateTimeString()
@@ -29,13 +29,13 @@ class IntegrationTransaction
             ]);
         });
     }
-    
+
     public static function markAsCompleted(int $integrationId, ?int $qtdImoveis = null, ?float $executionTime = null): void
     {
         DB::transaction(function () use ($integrationId, $qtdImoveis, $executionTime) {
             $integration = Integracao::findOrFail($integrationId);
             $queue = self::getOrCreateQueue($integrationId);
-            
+
             if ($qtdImoveis === null) {
                 $qtdImoveis = $integration->user->anuncios()->where('integration_id', $integrationId)->count();
             }
@@ -46,7 +46,7 @@ class IntegrationTransaction
                 'first_integration' => $integration->first_integration ?: Carbon::now('America/Sao_Paulo')->toDateTimeString(),
                 'updated_at' => Carbon::now('America/Sao_Paulo')->toDateTimeString()
             ]);
-            
+
             $queue->update([
                 'status' => IntegrationsQueues::STATUS_DONE,
                 'completed_at' => now(),
@@ -56,18 +56,18 @@ class IntegrationTransaction
             ]);
         });
     }
-    
+
     public static function markAsError(int $integrationId, string $errorMessage, ?string $errorStep = null, ?array $errorDetails = null, ?float $executionTime = null): void
     {
         DB::transaction(function () use ($integrationId, $errorMessage, $errorStep, $errorDetails, $executionTime) {
             $integration = Integracao::findOrFail($integrationId);
             $queue = self::getOrCreateQueue($integrationId);
-            
+
             $integration->update([
                 'status' => Integracao::XML_STATUS_IN_ANALYSIS,
                 'updated_at' => Carbon::now('America/Sao_Paulo')->toDateTimeString()
             ]);
-            
+
             $queue->update([
                 'status' => IntegrationsQueues::STATUS_ERROR,
                 'completed_at' => now(),
@@ -79,13 +79,13 @@ class IntegrationTransaction
             ]);
         });
     }
-    
+
     public static function prepareForReprocessing(int $integrationId, ?int $priority = null): void
     {
         DB::transaction(function () use ($integrationId, $priority) {
             $integration = Integracao::findOrFail($integrationId);
             $queue = self::getOrCreateQueue($integrationId);
-            
+
             if ($priority === null) {
                 $priority = $integration->user->integration_priority ?? 0;
             }
@@ -93,7 +93,7 @@ class IntegrationTransaction
                 'status' => Integracao::XML_STATUS_IN_ANALYSIS,
                 'updated_at' => Carbon::now('America/Sao_Paulo')->toDateTimeString()
             ]);
-            
+
             $queue->update([
                 'priority' => $priority,
                 'status' => IntegrationsQueues::STATUS_PENDING,
@@ -108,18 +108,18 @@ class IntegrationTransaction
             ]);
         });
     }
-    
+
     public static function markAsStopped(int $integrationId, string $reason): void
     {
         DB::transaction(function () use ($integrationId, $reason) {
             $integration = Integracao::findOrFail($integrationId);
             $queue = self::getOrCreateQueue($integrationId);
-            
+
             $integration->update([
                 'status' => Integracao::XML_STATUS_PROGRAMMERS_SOLVE,
                 'updated_at' => Carbon::now('America/Sao_Paulo')->toDateTimeString()
             ]);
-            
+
             $queue->update([
                 'status' => IntegrationsQueues::STATUS_STOPPED,
                 'completed_at' => now(),
@@ -128,7 +128,7 @@ class IntegrationTransaction
             ]);
         });
     }
-    
+
     private static function getOrCreateQueue(int $integrationId): IntegrationsQueues
     {
         return IntegrationsQueues::firstOrCreate(

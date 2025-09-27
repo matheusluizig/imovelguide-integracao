@@ -9,62 +9,78 @@ use App\Integracao\Application\Jobs\ProcessIntegrationJob;
 
 class DispatchPriorityIntegration extends Command
 {
-    protected $signature = 'integration:dispatch-priority {integration_id : ID da integração}';
+    protected $signature = 'integration:dispatch-priority {integration_ids* : Um ou mais IDs de integrações (aceita separado por espaço ou vírgula)}';
     protected $description = 'Despacha uma integração específica para a fila prioritária';
 
     public function handle()
     {
-        $integrationId = $this->argument('integration_id');
+        $args = (array) $this->argument('integration_ids');
 
-        
-        $integration = Integracao::find($integrationId);
-        if (!$integration) {
-            $this->error("❌ Integração ID {$integrationId} não encontrada");
+        $flat = [];
+        foreach ($args as $arg) {
+            $parts = array_filter(array_map('trim', explode(',', (string) $arg)));
+            foreach ($parts as $p) {
+                if ($p !== '') {
+                    $flat[] = $p;
+                }
+            }
+        }
+
+        $ids = array_values(array_unique($flat));
+
+        if (empty($ids)) {
+            $this->error('❌ Nenhum ID informado.');
             return Command::FAILURE;
         }
 
-        $this->info("🚀 Despachando integração {$integrationId} para fila prioritária...");
+        $this->info('🚀 Despachando integrações para fila prioritária: ' . implode(', ', $ids));
 
-        try {
-            
-            $queue = IntegrationsQueues::firstOrCreate(
-                ['integration_id' => $integrationId],
-                [
-                    'priority' => IntegrationsQueues::PRIORITY_PLAN,
-                    'status' => IntegrationsQueues::STATUS_PENDING,
-                    'created_at' => now(),
-                    'updated_at' => now()
-                ]
-            );
+        $success = 0;
+        $fail = 0;
 
-            
-            $queue->priority = IntegrationsQueues::PRIORITY_PLAN;
-            $queue->status = IntegrationsQueues::STATUS_PENDING;
-            $queue->started_at = null;
-            $queue->ended_at = null;
-            $queue->error_message = null;
-            $queue->last_error_step = null;
-            $queue->error_details = null;
-            $queue->attempts = 0;
-            $queue->save();
+        foreach ($ids as $integrationId) {
+            $integration = Integracao::find($integrationId);
+            if (!$integration) {
+                $this->error("❌ Integração ID {$integrationId} não encontrada");
+                $fail++;
+                continue;
+            }
 
-            
-            $integration->status = Integracao::XML_STATUS_NOT_INTEGRATED;
-            $integration->save();
+            try {
+                $queue = IntegrationsQueues::firstOrCreate(
+                    ['integration_id' => $integrationId],
+                    [
+                        'priority' => IntegrationsQueues::PRIORITY_PLAN,
+                        'status' => IntegrationsQueues::STATUS_PENDING,
+                        'created_at' => now(),
+                        'updated_at' => now()
+                    ]
+                );
 
-            
-            ProcessIntegrationJob::dispatch($integrationId, 'priority-integrations');
+                $queue->priority = IntegrationsQueues::PRIORITY_PLAN;
+                $queue->status = IntegrationsQueues::STATUS_PENDING;
+                $queue->started_at = null;
+                $queue->ended_at = null;
+                $queue->error_message = null;
+                $queue->last_error_step = null;
+                $queue->error_details = null;
+                $queue->attempts = 0;
+                $queue->save();
 
-            $this->info("✅ Integração {$integrationId} ({$integration->system}) despachada com prioridade máxima!");
-            $this->line("📋 Prioridade: PLAN (máxima)");
-            $this->line("🔄 Fila: integrations (prioridade máxima)");
-            $this->line("⏰ Status: Pendente");
+                $integration->status = Integracao::XML_STATUS_NOT_INTEGRATED;
+                $integration->save();
 
-            return Command::SUCCESS;
+                ProcessIntegrationJob::dispatch($integrationId, 'priority-integrations');
 
-        } catch (\Exception $e) {
-            $this->error("❌ Erro ao despachar integração: " . $e->getMessage());
-            return Command::FAILURE;
+                $this->info("✅ Integração {$integrationId} ({$integration->system}) despachada com prioridade máxima!");
+                $success++;
+            } catch (\Exception $e) {
+                $this->error("❌ Erro ao despachar integração {$integrationId}: " . $e->getMessage());
+                $fail++;
+            }
         }
+
+        $this->line("Resumo: ✅ {$success} sucesso(s), ❌ {$fail} falha(s)");
+        return $fail > 0 && $success === 0 ? Command::FAILURE : Command::SUCCESS;
     }
 }

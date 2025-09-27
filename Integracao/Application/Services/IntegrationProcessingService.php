@@ -30,9 +30,18 @@ class IntegrationProcessingService
         $startTime = microtime(true);
         $this->initializeLogger($integration);
 
+        // Iniciar heartbeat
+        $heartbeat = app(\App\Integracao\Application\Services\IntegrationHeartbeat::class);
+        $heartbeat->startHeartbeat($integration->id);
+
         try {
+            $heartbeat->updateHeartbeat($integration->id, 'validation', ['step' => 'validating_data']);
             $this->validateIntegration($integration);
+
+            $heartbeat->updateHeartbeat($integration->id, 'fetch_xml', ['step' => 'downloading_xml']);
             $xmlContent = $this->fetchXmlContent($integration);
+
+            $heartbeat->updateHeartbeat($integration->id, 'process_xml', ['step' => 'parsing_xml', 'xml_size' => strlen($xmlContent)]);
             $result = $this->processXmlContent($integration, $xmlContent);
 
             $executionTime = microtime(true) - $startTime;
@@ -44,18 +53,62 @@ class IntegrationProcessingService
                     round(($result['processed_items'] / $result['total_items']) * 100, 2) : 0
             ];
 
+            $heartbeat->updateHeartbeat($integration->id, 'success', ['step' => 'completed', 'items_processed' => $result['processed_items'] ?? 0]);
             $this->logSuccess($integration, $this->metrics);
 
+            // CRÍTICO: Validar se realmente processou imóveis
+            $processedItems = $result['processed_items'] ?? 0;
+            $totalItems = $result['total_items'] ?? 0;
+            $hasProcessedItems = $processedItems > 0;
+
+            if (!$hasProcessedItems) {
+                Log::channel('integration')->warning("⚠️ PROCESSING: No items were processed", [
+                    'integration_id' => $integration->id,
+                    'total_items' => $totalItems,
+                    'processed_items' => $processedItems,
+                    'execution_time' => $executionTime
+                ]);
+            }
+
             $response = [
-                'success' => true,
-                'processed_items' => $result['processed_items'] ?? 0,
-                'total_items' => $result['total_items'] ?? 0,
+                'success' => $hasProcessedItems,
+                'processed_items' => $processedItems,
+                'total_items' => $totalItems,
                 'execution_time' => $executionTime,
-                'metrics' => $this->metrics
+                'metrics' => $this->metrics,
+                'reason' => $hasProcessedItems ? 'items_processed' : 'no_items_processed'
             ];
 
         } catch (Exception $e) {
             $executionTime = microtime(true) - $startTime;
+            // Log detalhado do erro
+            Log::channel('integration')->error("💥 PROCESSING: Critical error during integration", [
+                'integration_id' => $integration->id,
+                'error_type' => get_class($e),
+                'error_message' => $e->getMessage(),
+                'error_code' => $e->getCode(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'execution_time' => $executionTime,
+                'memory_usage' => memory_get_usage(true),
+                'memory_peak' => memory_get_peak_usage(true)
+            ]);
+
+            // Atualizar heartbeat com erro
+            try {
+                $heartbeat->updateHeartbeat($integration->id, 'error', [
+                    'step' => 'failed',
+                    'error' => $e->getMessage(),
+                    'error_type' => get_class($e)
+                ]);
+            } catch (\Exception $heartbeatError) {
+                Log::channel('integration')->warning("Failed to update heartbeat with error", [
+                    'integration_id' => $integration->id,
+                    'original_error' => $e->getMessage(),
+                    'heartbeat_error' => $heartbeatError->getMessage()
+                ]);
+            }
+
             $this->logError($integration, $e, $executionTime);
 
             $response = [
@@ -68,6 +121,17 @@ class IntegrationProcessingService
                 'memory_peak' => memory_get_peak_usage(true)
             ];
         } finally {
+            // CRÍTICO: Sempre parar heartbeat, mesmo em caso de exceção
+            try {
+                $status = isset($response) && $response['success'] ? 'completed' : 'failed';
+                $heartbeat->stopHeartbeat($integration->id, $status);
+            } catch (\Exception $heartbeatError) {
+                Log::channel('integration')->error("💀 PROCESSING: CRITICAL - Failed to stop heartbeat", [
+                    'integration_id' => $integration->id,
+                    'heartbeat_error' => $heartbeatError->getMessage()
+                ]);
+            }
+
             $this->logger = null;
         }
 
@@ -98,7 +162,6 @@ class IntegrationProcessingService
             throw new Exception("Integration link is empty for integration {$integration->id}");
         }
 
-        
         $cleanUrl = trim($integration->link);
         if ($cleanUrl !== $integration->link) {
             Log::channel('integration')->warning("URL had extra spaces, cleaning", [
@@ -119,11 +182,9 @@ class IntegrationProcessingService
     {
         $cacheKey = "xml_content_{$integration->id}_" . md5($integration->link);
 
-        
         try {
             $cachedContent = Cache::get($cacheKey);
             if ($cachedContent) {
-                Log::channel('integration')->info("XML content loaded from cache", ['integration_id' => $integration->id]);
                 return $cachedContent;
             }
         } catch (\Exception $e) {
@@ -134,18 +195,14 @@ class IntegrationProcessingService
         }
 
         $maxRetries = 3;
-        $retryDelay = 2000; 
+        $retryDelay = 2000;
 
         for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
             try {
-                Log::channel('integration')->info("Fetching XML content", [
-                    'integration_id' => $integration->id,
-                    'url' => $integration->link,
-                    'attempt' => $attempt
-                ]);
 
-                $response = Http::timeout(600) 
-                    ->retry(2, 2000) 
+
+                $response = Http::timeout(600)
+                    ->retry(2, 2000)
                     ->withHeaders([
                         'User-Agent' => 'ImovelGuide-Integration/1.0',
                         'Accept' => 'application/xml, text/xml, */*',
@@ -153,16 +210,25 @@ class IntegrationProcessingService
                         'Cache-Control' => 'no-cache'
                     ])
                     ->withOptions([
-                        'verify' => false, 
+                        'verify' => false,
                         'allow_redirects' => true,
-                        'max_redirects' => 5
+                        'max_redirects' => 5,
+                        'curl' => [
+                            CURLOPT_TCP_KEEPALIVE => 1,
+                            CURLOPT_TCP_KEEPIDLE => 60,
+                            CURLOPT_TCP_KEEPINTVL => 30,
+                            CURLOPT_SSL_VERIFYPEER => false,
+                            CURLOPT_SSL_VERIFYHOST => false,
+                            CURLOPT_BUFFERSIZE => 8192,
+                            CURLOPT_LOW_SPEED_LIMIT => 1024,
+                            CURLOPT_LOW_SPEED_TIME => 60
+                        ]
                     ])
                     ->get($integration->link);
 
                 if (!$response->successful()) {
                     $errorMsg = "HTTP error {$response->status()}: {$response->body()}";
 
-                    
                     if ($response->status() >= 400 && $response->status() < 500) {
                         $errorType = $response->status() === 404 ? 'URL not found' : 'Client error';
                         Log::channel('integration')->error("Integration {$errorType} ({$response->status()})", [
@@ -174,9 +240,8 @@ class IntegrationProcessingService
                         throw new Exception("Request failed after 3 attempts: HTTP request returned status code {$response->status()}:\n" . substr($response->body(), 0, 500));
                     }
 
-                    
                     if ($response->status() >= 500 && $attempt < $maxRetries) {
-                        
+
                         $criticalErrors = ['Internal Server Error', 'Service Unavailable', 'Gateway Timeout'];
                         $isCriticalError = false;
 
@@ -222,7 +287,6 @@ class IntegrationProcessingService
                     throw new Exception("Empty XML content received from URL: {$integration->link}");
                 }
 
-                
                 $previousUseInternalErrors = libxml_use_internal_errors(true);
                 $dom = new \DOMDocument();
                 $dom->loadXML($xmlContent);
@@ -236,14 +300,9 @@ class IntegrationProcessingService
                     ]);
                 }
 
-                
                 $this->storeXmlInCache($cacheKey, $xmlContent, $integration);
 
-                Log::channel('integration')->info("XML content fetched successfully", [
-                    'integration_id' => $integration->id,
-                    'content_size' => strlen($xmlContent),
-                    'attempt' => $attempt
-                ]);
+             
 
                 return $xmlContent;
 
@@ -356,20 +415,41 @@ class IntegrationProcessingService
 
     protected function performFallbackDownload(Integracao $integration): string
     {
-        $context = stream_context_create([
-            'http' => [
-                'method' => 'GET',
-                'header' => "User-Agent: ImovelGuide-Integration/1.0\r\nAccept: application/xml, text/xml, */*",
-                'timeout' => 600
-            ]
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $integration->link,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_MAXREDIRS => 5,
+            CURLOPT_TIMEOUT => 600,
+            CURLOPT_CONNECTTIMEOUT => 30,
+            CURLOPT_USERAGENT => 'ImovelGuide-Integration/1.0',
+            CURLOPT_HTTPHEADER => [
+                'Accept: application/xml, text/xml, */*',
+                'Connection: keep-alive',
+                'Cache-Control: no-cache'
+            ],
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => false,
+            CURLOPT_TCP_KEEPALIVE => 1,
+            CURLOPT_TCP_KEEPIDLE => 60,
+            CURLOPT_TCP_KEEPINTVL => 30,
+            CURLOPT_BUFFERSIZE => 8192,
+            CURLOPT_LOW_SPEED_LIMIT => 1024,
+            CURLOPT_LOW_SPEED_TIME => 60
         ]);
 
-        $xmlContent = @file_get_contents($integration->link, false, $context);
+        $xmlContent = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error = curl_error($ch);
+        curl_close($ch);
 
-        if ($xmlContent === false) {
-            $error = error_get_last();
-            $message = $error['message'] ?? 'Unknown error';
-            throw new Exception("Fallback HTTP request failed: {$message}");
+        if ($xmlContent === false || !empty($error)) {
+            throw new Exception("Fallback cURL request failed: {$error}");
+        }
+
+        if ($httpCode >= 400) {
+            throw new Exception("Fallback HTTP error {$httpCode}");
         }
 
         return $xmlContent;
@@ -390,24 +470,19 @@ class IntegrationProcessingService
     private function processXmlContent(Integracao $integration, string $xmlContent): array
     {
         $stepStartTime = microtime(true);
-        
-        try {
-            Log::channel('integration')->info("Starting XML document parsing", [
-                'integration_id' => $integration->id,
-                'xml_size' => strlen($xmlContent),
-                'memory_before' => memory_get_usage(true)
-            ]);
 
+        try {
+  
             $document = new Document();
             $document->load($xmlContent, false, Document::TYPE_XML,
                 LIBXML_PARSEHUGE | LIBXML_NSCLEAN | LIBXML_NOEMPTYTAG | LIBXML_NOBLANKS | LIBXML_NONET);
 
             $parseTime = microtime(true) - $stepStartTime;
-            Log::channel('integration')->info("XML document parsed successfully", [
-                'integration_id' => $integration->id,
-                'parse_time' => $parseTime,
-                'memory_after_parse' => memory_get_usage(true)
-            ]);
+     
+
+            // Heartbeat update
+            $heartbeat = app(\App\Integracao\Application\Services\IntegrationHeartbeat::class);
+            $heartbeat->updateHeartbeat($integration->id, 'factory_setup', ['step' => 'identifying_provider']);
 
             $factory = new XMLIntegrationsFactory();
             $factory->setIntegrationAndLoadXml($integration, $document);
@@ -418,11 +493,8 @@ class IntegrationProcessingService
 
             $provider = $factory->getProvider();
             $providerClass = get_class($provider);
-            
-            Log::channel('integration')->info("Provider identified", [
-                'integration_id' => $integration->id,
-                'provider' => $providerClass
-            ]);
+
+
 
             $provider->setOptions([
                 'isManual' => false,
@@ -430,32 +502,38 @@ class IntegrationProcessingService
                 'updateType' => Integracao::XML_STATUS_IN_UPDATE_BOTH
             ]);
 
+            $heartbeat->updateHeartbeat($integration->id, 'parsing', ['step' => 'parsing_with_provider', 'provider' => $providerClass]);
             $parserStartTime = microtime(true);
             $provider->parser();
             $parserTime = microtime(true) - $parserStartTime;
-            
-            Log::channel('integration')->info("XML parsed by provider", [
-                'integration_id' => $integration->id,
-                'parser_time' => $parserTime,
-                'memory_after_parser' => memory_get_usage(true)
-            ]);
 
+      
+
+            $heartbeat->updateHeartbeat($integration->id, 'prepare_data', ['step' => 'preparing_data']);
             $prepareStartTime = microtime(true);
             $provider->prepareData();
             $prepareTime = microtime(true) - $prepareStartTime;
-            
+
             Log::channel('integration')->info("Data prepared", [
                 'integration_id' => $integration->id,
                 'prepare_time' => $prepareTime,
                 'memory_after_prepare' => memory_get_usage(true)
             ]);
 
+            $totalItems = $provider->getImoveisCount();
+            $heartbeat->updateHeartbeat($integration->id, 'insert_data', ['step' => 'inserting_data', 'total_items' => $totalItems]);
+
             $insertStartTime = microtime(true);
             $provider->insertData();
             $insertTime = microtime(true) - $insertStartTime;
 
-            $totalItems = $provider->getImoveisCount();
             $processedItems = $provider->getImoveisMade();
+
+            $heartbeat->updateHeartbeat($integration->id, 'finalization', [
+                'step' => 'completed_successfully',
+                'processed_items' => $processedItems,
+                'total_items' => $totalItems
+            ]);
 
             Log::channel('integration')->info("XML processing completed successfully", [
                 'integration_id' => $integration->id,
@@ -474,7 +552,7 @@ class IntegrationProcessingService
 
         } catch (Exception $e) {
             $processingTime = microtime(true) - $stepStartTime;
-            
+
             Log::channel('integration')->error("XML processing failed", [
                 'integration_id' => $integration->id,
                 'error' => $e->getMessage(),
@@ -485,7 +563,7 @@ class IntegrationProcessingService
                 'memory_peak' => memory_get_peak_usage(true),
                 'trace' => $e->getTraceAsString()
             ]);
-            
+
             throw new Exception("XML processing failed: " . $e->getMessage(), $e->getCode(), $e);
         }
     }

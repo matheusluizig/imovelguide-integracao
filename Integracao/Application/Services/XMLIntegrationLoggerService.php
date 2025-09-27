@@ -36,10 +36,6 @@ class XMLIntegrationLoggerService
       'timestamp' => now()->format('Y-m-d H:i:s')
     ]);
 
-    
-    
-
-    
     $businessCriticalErrors = [
       'Falha ao inserir anúncio',
       'Falha ao atualizar anúncio',
@@ -49,7 +45,6 @@ class XMLIntegrationLoggerService
       'Erro de autenticação no XML',
     ];
 
-    
     $paymentCriticalErrors = [
       'Falha ao criar cobrança',
       'Falha ao atualizar cobrança',
@@ -58,7 +53,6 @@ class XMLIntegrationLoggerService
       'Falha ao cancelar plano',
     ];
 
-    
     foreach ($businessCriticalErrors as $criticalError) {
       if (strpos($problem, $criticalError) !== false) {
         DiscordLogService::logBusinessCriticalError(
@@ -81,7 +75,6 @@ class XMLIntegrationLoggerService
       }
     }
 
-    
     foreach ($paymentCriticalErrors as $paymentError) {
       if (strpos($problem, $paymentError) !== false) {
         DiscordLogService::logPaymentError(
@@ -101,8 +94,6 @@ class XMLIntegrationLoggerService
         return;
       }
     }
-
-    
   }
 
   public function loggerDone(int $total, int $countDone, string $problems = '')
@@ -129,7 +120,5 @@ class XMLIntegrationLoggerService
     if ($problems != '') {
       $toLog['problemas'] = $problems;
     }
-
-    
   }
 }

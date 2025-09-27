@@ -35,7 +35,7 @@ class XMLIntegrationParserService
     $this->integration = $integration;
   }
 
-  
+
 
 
 
@@ -46,7 +46,7 @@ class XMLIntegrationParserService
     $this->logger = $service;
   }
 
-  
+
 
 
 
@@ -77,7 +77,7 @@ class XMLIntegrationParserService
     return true;
   }
 
-  
+
 
 
 
@@ -85,7 +85,7 @@ class XMLIntegrationParserService
   private function canParseXml(): bool
   {
     if (!$this->parseIntegration()) {
-      return false; 
+      return false;
     }
 
     $this->factory->setIntegrationAndLoadXml($this->integration);
@@ -106,7 +106,7 @@ class XMLIntegrationParserService
     return true;
   }
 
-  
+
 
 
 
@@ -127,7 +127,7 @@ class XMLIntegrationParserService
     return $isValid;
   }
 
-  
+
 
 
 
@@ -154,7 +154,7 @@ class XMLIntegrationParserService
     return true;
   }
 
-  
+
 
 
 
@@ -162,7 +162,7 @@ class XMLIntegrationParserService
   public function integrationHasValidXml(): bool
   {
     $maxRetries = 3;
-    $retryDelay = 10; 
+    $retryDelay = 10;
 
     for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
       try {
@@ -185,7 +185,7 @@ class XMLIntegrationParserService
 
         if ($attempt < $maxRetries) {
           sleep($retryDelay);
-          $retryDelay *= 2; 
+          $retryDelay *= 2;
           continue;
         }
 
@@ -210,7 +210,7 @@ class XMLIntegrationParserService
     return false;
   }
 
-  
+
 
 
 
@@ -218,11 +218,11 @@ class XMLIntegrationParserService
   private function requestXml()
   {
     return Http::withUserAgent('ImovelGuide/1.0 (XML Integration Service; +https://imovelguide.com.br)')
-      ->timeout(600) 
+      ->timeout(600)
       ->get(IntegrationHelper::loadSafeLink($this->integration->link));
   }
 
-  
+
 
 
 
@@ -290,7 +290,7 @@ class XMLIntegrationParserService
     }
   }
 
-  
+
 
 
 
@@ -310,7 +310,7 @@ class XMLIntegrationParserService
     return true;
   }
 
-  
+
 
 
 
@@ -335,7 +335,7 @@ class XMLIntegrationParserService
     return false;
   }
 
-  
+
 
 
 
@@ -357,7 +357,7 @@ class XMLIntegrationParserService
     return true;
   }
 
-  
+
 
 
 
@@ -378,7 +378,7 @@ class XMLIntegrationParserService
     }
   }
 
-  
+
 
 
 
@@ -399,7 +399,7 @@ class XMLIntegrationParserService
     }
   }
 
-  
+
 
 
 
@@ -420,7 +420,7 @@ class XMLIntegrationParserService
     }
   }
 
-  
+
 
 
 
@@ -428,16 +428,16 @@ class XMLIntegrationParserService
 
   public function deleteRelatedRecords($anuncio): void
   {
-    
+
     DB::table('anuncio_images')->where('anuncio_id', $anuncio->id)->delete();
     DB::table('anuncio_beneficio')->where('anuncio_id', $anuncio->id)->delete();
     DB::table('anuncio_enderecos')->where('anuncio_id', $anuncio->id)->delete();
     DB::table('lista_corretores_da_construtora')->where('anuncio_id', $anuncio->id)->delete();
-    
+
     $anuncio->delete();
   }
 
-  
+
 
 
 

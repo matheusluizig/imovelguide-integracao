@@ -96,7 +96,7 @@ class BulkIntegrationService
             $anuncioData['created_at'] = Carbon::now('America/Sao_Paulo');
             $anuncioData['updated_at'] = Carbon::now('America/Sao_Paulo');
             $this->anunciosToInsert[] = $anuncioData;
-            return 0; 
+            return 0;
         }
     }
 

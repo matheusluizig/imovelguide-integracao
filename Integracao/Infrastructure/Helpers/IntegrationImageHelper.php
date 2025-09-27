@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Storage;
 
 class IntegrationImageHelper
 {
-    
+
 
 
 
@@ -22,16 +22,14 @@ class IntegrationImageHelper
 
             $disk = Storage::disk('do_spaces');
 
-            
             if (strpos($imageName, 'integration/') === 0) {
                 $cleanName = str_replace('integration/', '', $imageName);
 
-                
                 $cleanName = preg_replace('/\.webp$/', '', $cleanName);
 
                 switch ($size) {
                     case 'small':
-                        
+
                         $pathWebp = "images/integration/properties/small/{$cleanName}.webp";
                         $pathOld = "images/integration/properties/small/{$cleanName}";
                         if ($disk->exists($pathWebp)) {
@@ -39,11 +37,11 @@ class IntegrationImageHelper
                         } elseif ($disk->exists($pathOld)) {
                             $path = $pathOld;
                         } else {
-                            $path = $pathWebp; 
+                            $path = $pathWebp;
                         }
                         break;
                     case 'medium':
-                        
+
                         $pathWebp = "images/integration/properties/medium/{$cleanName}.webp";
                         $pathOld = "images/integration/properties/medium/{$cleanName}";
                         if ($disk->exists($pathWebp)) {
@@ -51,7 +49,7 @@ class IntegrationImageHelper
                         } elseif ($disk->exists($pathOld)) {
                             $path = $pathOld;
                         } else {
-                            $path = $pathWebp; 
+                            $path = $pathWebp;
                         }
                         break;
                     case 'large':
@@ -65,7 +63,6 @@ class IntegrationImageHelper
                     return $disk->url($path);
                 }
 
-                
                 $originalPath = "images/{$imageName}";
                 if ($disk->exists($originalPath)) {
                     return $disk->url($originalPath);
@@ -83,7 +80,7 @@ class IntegrationImageHelper
         }
     }
 
-    
+
 
 
 
@@ -104,7 +101,7 @@ class IntegrationImageHelper
 
                 switch ($size) {
                     case 'small':
-                        
+
                         $pathWebp = "images/integration/properties/small/{$cleanName}.webp";
                         $pathOld = "images/integration/properties/small/{$cleanName}";
                         if ($disk->exists($pathWebp)) {
@@ -112,11 +109,11 @@ class IntegrationImageHelper
                         } elseif ($disk->exists($pathOld)) {
                             $path = $pathOld;
                         } else {
-                            $path = $pathWebp; 
+                            $path = $pathWebp;
                         }
                         break;
                     case 'medium':
-                        
+
                         $pathWebp = "images/integration/properties/medium/{$cleanName}.webp";
                         $pathOld = "images/integration/properties/medium/{$cleanName}";
                         if ($disk->exists($pathWebp)) {
@@ -124,7 +121,7 @@ class IntegrationImageHelper
                         } elseif ($disk->exists($pathOld)) {
                             $path = $pathOld;
                         } else {
-                            $path = $pathWebp; 
+                            $path = $pathWebp;
                         }
                         break;
                     case 'large':
@@ -149,18 +146,18 @@ class IntegrationImageHelper
         }
     }
 
-    
+
 
 
 
 
     private static function getDefaultImageUrl()
     {
-        
+
         return asset('images/default-integration-image.jpg');
     }
 
-    
+
 
 
 
@@ -178,7 +175,7 @@ class IntegrationImageHelper
         return $versions;
     }
 
-    
+
 
 
 
@@ -190,15 +187,14 @@ class IntegrationImageHelper
         if (strpos($imageName, 'integration/') === 0) {
             $cleanName = str_replace('integration/', '', $imageName);
 
-            
             $cleanName = preg_replace('/\.webp$/', '', $cleanName);
 
             switch ($size) {
                 case 'small':
-                    
+
                     return "images/integration/properties/small/{$cleanName}.webp";
                 case 'medium':
-                    
+
                     return "images/integration/properties/medium/{$cleanName}.webp";
                 case 'large':
                 case 'original':

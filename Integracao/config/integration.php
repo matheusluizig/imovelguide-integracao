@@ -1,7 +1,7 @@
 <?php
 
 return [
-    
+
 
 
 
@@ -11,12 +11,12 @@ return [
 
 
     'chunk_size' => env('INTEGRATION_CHUNK_SIZE', 200),
-    'max_parallel_chunks_per_integration' => env('INTEGRATION_MAX_PARALLEL_CHUNKS', 3),
-    'timeout' => env('INTEGRATION_TIMEOUT', 1800), 
+    'max_parallel_chunks_per_integration' => env('INTEGRATION_MAX_PARALLEL_CHUNKS', 6),
+    'timeout' => env('INTEGRATION_TIMEOUT', 1800),
     'max_retries' => env('INTEGRATION_MAX_RETRIES', 3),
-    'retry_delays' => [60, 300, 900], 
+    'retry_delays' => [60, 300, 900],
 
-    
+
 
 
 
@@ -26,13 +26,13 @@ return [
 
 
     'cache' => [
-        'default_ttl' => env('INTEGRATION_CACHE_TTL', 3600), 
-        'xml_ttl' => env('INTEGRATION_XML_CACHE_TTL', 3600), 
-        'metrics_ttl' => env('INTEGRATION_METRICS_CACHE_TTL', 300), 
-        'user_data_ttl' => env('INTEGRATION_USER_CACHE_TTL', 1800), 
+        'default_ttl' => env('INTEGRATION_CACHE_TTL', 3600),
+        'xml_ttl' => env('INTEGRATION_XML_CACHE_TTL', 3600),
+        'metrics_ttl' => env('INTEGRATION_METRICS_CACHE_TTL', 300),
+        'user_data_ttl' => env('INTEGRATION_USER_CACHE_TTL', 1800),
     ],
 
-    
+
 
 
 
@@ -48,7 +48,7 @@ return [
         'enable_query_logging' => env('INTEGRATION_QUERY_LOGGING', false),
     ],
 
-    
+
 
 
 
@@ -61,13 +61,13 @@ return [
         'enable_metrics' => env('INTEGRATION_ENABLE_METRICS', true),
         'metrics_retention_days' => env('INTEGRATION_METRICS_RETENTION', 30),
         'alert_thresholds' => [
-            'execution_time' => env('INTEGRATION_ALERT_EXECUTION_TIME', 600), 
-            'error_rate' => env('INTEGRATION_ALERT_ERROR_RATE', 10), 
+            'execution_time' => env('INTEGRATION_ALERT_EXECUTION_TIME', 600),
+            'error_rate' => env('INTEGRATION_ALERT_ERROR_RATE', 10),
             'queue_size' => env('INTEGRATION_ALERT_QUEUE_SIZE', 1000),
         ],
     ],
 
-    
+
 
 
 
@@ -87,7 +87,7 @@ return [
         'quality' => env('INTEGRATION_IMAGE_QUALITY', 85),
     ],
 
-    
+
 
 
 
@@ -103,7 +103,7 @@ return [
         'timeout' => env('INTEGRATION_QUEUE_TIMEOUT', 1800),
     ],
 
-    
+
 
 
 

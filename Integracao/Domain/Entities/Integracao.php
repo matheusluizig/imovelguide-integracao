@@ -110,7 +110,7 @@ class Integracao extends Model
             Integracao::XML_STATUS_CRM_ERRO,
             Integracao::XML_STATUS_NOT_INTEGRATED,
             Integracao::XML_STATUS_IN_ANALYSIS,
-            
+
         ];
         return $result->filter(function ($value, $key) use ($statusArray) {
             if ($value->user->level >= 6 || ($value->user->asaasSub !== null && $value->user->asaasSub->status)) {
@@ -118,14 +118,13 @@ class Integracao extends Model
             } else {
                 $next_update = ($value->updated_at ? $value->updated_at->addDay(4) : null);
             }
-        
+
             return in_array($value->status, $statusArray) &&
                 $value->user->asaasSub !== null &&
                 $value->user->asaasSub->status === 1 &&
                 ($value->user->asaasSub->data_cancelamento === null || $value->user->asaasSub->data_cancelamento > today()) &&
                 ($next_update !== null && Carbon::now() > Carbon::parse($next_update->format('Y-m-d H:i:s')));
         });
-        
     }
     public static function getXmlNaoAtualizado($result) {
         return $result->filter(function ($value, $key)  {
@@ -171,7 +170,7 @@ class Integracao extends Model
         return compact(
             'today', 'yesterday', 'lastWeek', 'lastMonth', 'monthBeforeLast', 'trimester', 'quarter',
             'averageWeek', 'averageMonth', 'averageMonthBeforeLast', 'trimesterly', 'quarterly', 'yearly'
-		);
+        );
     }
 
     public function getCrmNameAttribute() {

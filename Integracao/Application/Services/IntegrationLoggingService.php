@@ -11,13 +11,13 @@ use Carbon\Carbon;
 class IntegrationLoggingService
 {
     private const LOG_CHANNEL = 'integration';
-    private const CONTEXT_CACHE_TTL = 3600; 
-    private const METRICS_CACHE_TTL = 300; 
+    private const CONTEXT_CACHE_TTL = 3600;
+    private const METRICS_CACHE_TTL = 300;
 
     public function logIntegrationStart(Integracao $integration, array $context = []): string
     {
         $correlationId = $this->generateCorrelationId();
-        
+
         $logData = [
             'correlation_id' => $correlationId,
             'event' => 'integration_started',
@@ -33,10 +33,9 @@ class IntegrationLoggingService
         ];
 
         Log::channel(self::LOG_CHANNEL)->info('🚀 Integration started', $logData);
-        
-        
+
         $this->cacheLogContext($correlationId, $logData);
-        
+
         return $correlationId;
     }
 
@@ -57,7 +56,7 @@ class IntegrationLoggingService
     public function logIntegrationSuccess(Integracao $integration, string $correlationId, array $metrics): void
     {
         $executionTime = $this->getExecutionTime($correlationId);
-        
+
         $logData = [
             'correlation_id' => $correlationId,
             'event' => 'integration_completed',
@@ -73,18 +72,16 @@ class IntegrationLoggingService
         ];
 
         Log::channel(self::LOG_CHANNEL)->info('✅ Integration completed successfully', $logData);
-        
-        
+
         $this->updatePerformanceMetrics($integration, $metrics, $executionTime);
-        
-        
+
         $this->clearLogContext($correlationId);
     }
 
     public function logIntegrationError(Integracao $integration, string $correlationId, \Throwable $exception, array $context = []): void
     {
         $executionTime = $this->getExecutionTime($correlationId);
-        
+
         $logData = [
             'correlation_id' => $correlationId,
             'event' => 'integration_failed',
@@ -106,14 +103,11 @@ class IntegrationLoggingService
         ];
 
         Log::channel(self::LOG_CHANNEL)->error('❌ Integration failed', $logData);
-        
-        
+
         $this->logCriticalError($integration, $exception, $logData);
-        
-        
+
         $this->updateErrorMetrics($integration, $exception);
-        
-        
+
         $this->clearLogContext($correlationId);
     }
 
@@ -168,15 +162,13 @@ class IntegrationLoggingService
 
     public function getLogsByCorrelationId(string $correlationId): array
     {
-        
-        
+
         return Cache::get("log_context_{$correlationId}", []);
     }
 
     public function getIntegrationLogs(int $integrationId, int $limit = 100): array
     {
-        
-        
+
         return Cache::get("integration_logs_{$integrationId}", []);
     }
 
@@ -184,12 +176,12 @@ class IntegrationLoggingService
     {
         $cacheKey = 'integration_system_metrics';
         $metrics = Cache::get($cacheKey, []);
-        
+
         if (empty($metrics)) {
             $metrics = $this->calculateSystemMetrics();
             Cache::put($cacheKey, $metrics, self::METRICS_CACHE_TTL);
         }
-        
+
         return $metrics;
     }
 
@@ -222,7 +214,7 @@ class IntegrationLoggingService
     {
         $cacheKey = "integration_metrics_{$integration->id}";
         $existingMetrics = Cache::get($cacheKey, []);
-        
+
         $newMetrics = array_merge($existingMetrics, [
             'last_execution_time' => $executionTime,
             'last_processed_items' => $metrics['processed_items'] ?? 0,
@@ -230,7 +222,7 @@ class IntegrationLoggingService
             'last_success_rate' => $metrics['success_rate'] ?? 0,
             'last_run' => now()->toISOString()
         ]);
-        
+
         Cache::put($cacheKey, $newMetrics, self::METRICS_CACHE_TTL);
     }
 
@@ -238,7 +230,7 @@ class IntegrationLoggingService
     {
         $cacheKey = "integration_errors_{$integration->id}";
         $existingErrors = Cache::get($cacheKey, []);
-        
+
         $errorData = [
             'message' => $exception->getMessage(),
             'code' => $exception->getCode(),
@@ -246,20 +238,19 @@ class IntegrationLoggingService
             'line' => $exception->getLine(),
             'timestamp' => now()->toISOString()
         ];
-        
+
         $existingErrors[] = $errorData;
-        
-        
+
         if (count($existingErrors) > 10) {
             $existingErrors = array_slice($existingErrors, -10);
         }
-        
+
         Cache::put($cacheKey, $existingErrors, self::METRICS_CACHE_TTL);
     }
 
     private function logCriticalError(Integracao $integration, \Throwable $exception, array $logData): void
     {
-        
+
         $criticalPatterns = [
             'Falha ao inserir anúncio',
             'Falha ao atualizar anúncio',
@@ -288,7 +279,7 @@ class IntegrationLoggingService
     private function calculateSystemMetrics(): array
     {
         $today = now()->startOfDay();
-        
+
         return [
             'total_integrations' => Integracao::count(),
             'active_integrations' => Integracao::where('status', Integracao::XML_STATUS_INTEGRATED)->count(),

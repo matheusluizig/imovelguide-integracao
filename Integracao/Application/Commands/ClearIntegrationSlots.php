@@ -21,27 +21,25 @@ class ClearIntegrationSlots extends Command
 
         try {
             $redis = app('redis');
-            
-            
-            $activeIntegrations = $redis->smembers('active_integrations');
-            $count = $redis->get('active_integrations_count') ?: 0;
-            
+
+            $activeIntegrations = $redis->smembers('imovelguide_database_active_integrations');
+            $count = $redis->get('imovelguide_database_active_integrations_count') ?: 0;
+
             $this->info("Slots atuais:");
             $this->line("  Integrações ativas: " . count($activeIntegrations));
             $this->line("  Contador: {$count}");
-            
+
             if (count($activeIntegrations) > 0) {
                 $this->line("  IDs ativos: " . implode(', ', $activeIntegrations));
             }
-            
-            
-            $redis->del('active_integrations');
-            $redis->del('active_integrations_count');
-            
+
+            $redis->del('imovelguide_database_active_integrations');
+            $redis->del('imovelguide_database_active_integrations_count');
+
             $this->info("✅ Slots de integração limpos com sucesso!");
-            
+
             return 0;
-            
+
         } catch (\Exception $e) {
             $this->error("❌ Erro ao limpar slots: " . $e->getMessage());
             return 1;

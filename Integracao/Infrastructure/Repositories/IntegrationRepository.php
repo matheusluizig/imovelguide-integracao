@@ -4,8 +4,6 @@ namespace App\Integracao\Infrastructure\Repositories;
 
 use App\Integracao\Domain\Entities\Integracao;
 use App\Integracao\Domain\Entities\IntegrationsQueues;
-use App\Integracao\Domain\Entities\IntegrationRun;
-use App\Integracao\Domain\Entities\IntegrationRunChunk;
 use App\Integracao\Domain\Transaction\IntegrationTransaction;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -58,88 +56,8 @@ class IntegrationRepository
         ]);
     }
 
-    public function createRun(int $integrationId, int $totalItems = 0): IntegrationRun
-    {
-        $integration = $this->findById($integrationId);
 
-        return DB::transaction(function () use ($integration, $totalItems) {
-            return IntegrationRun::create([
-                'integration_id' => $integration->id,
-                'user_id' => $integration->user_id,
-                'total_items' => $totalItems,
-                'processed_items' => 0,
-                'status' => 'running'
-            ]);
-        });
-    }
 
-    public function createChunks(IntegrationRun $run, int $totalItems, int $chunkSize): Collection
-    {
-        return DB::transaction(function () use ($run, $totalItems, $chunkSize) {
-            $chunks = collect();
-
-            $run->update(['total_items' => $totalItems]);
-            for ($offset = 0; $offset < $totalItems; $offset += $chunkSize) {
-                $limit = min($chunkSize, $totalItems - $offset);
-
-                $chunk = IntegrationRunChunk::create([
-                    'run_id' => $run->id,
-                    'offset' => $offset,
-                    'limit' => $limit,
-                    'processed' => 0,
-                    'status' => 'pending'
-                ]);
-
-                $chunks->push($chunk);
-            }
-
-            return $chunks;
-        });
-    }
-
-    public function updateChunkProgress(IntegrationRunChunk $chunk, int $processed): void
-    {
-        DB::transaction(function () use ($chunk, $processed) {
-            $chunk->update([
-                'processed' => $processed,
-                'status' => 'done'
-            ]);
-
-            $run = $chunk->run;
-            $run->increment('processed_items', $processed);
-            $pendingChunks = $run->chunks()->where('status', '!=', 'done')->count();
-            if ($pendingChunks === 0) {
-                $run->update(['status' => 'done']);
-
-                IntegrationTransaction::markAsCompleted(
-                    $run->integration_id,
-                    $run->processed_items
-                );
-            }
-        });
-    }
-
-    public function markChunkAsError(IntegrationRunChunk $chunk, string $errorMessage): void
-    {
-        DB::transaction(function () use ($chunk, $errorMessage) {
-            $chunk->update([
-                'status' => 'error',
-                'error_message' => $errorMessage
-            ]);
-
-            $run = $chunk->run;
-            $run->update([
-                'status' => 'error',
-                'error_message' => "Erro no chunk {$chunk->id}: {$errorMessage}"
-            ]);
-            IntegrationTransaction::markAsError(
-                $run->integration_id,
-                "Erro no chunk {$chunk->id}: {$errorMessage}",
-                'chunk_processing',
-                ['chunk_id' => $chunk->id]
-            );
-        });
-    }
 
     public function getPendingIntegrationsByPriority(int $priority, int $limit = 10): Collection
     {

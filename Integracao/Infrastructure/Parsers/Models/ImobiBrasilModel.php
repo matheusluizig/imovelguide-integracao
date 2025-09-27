@@ -2,7 +2,6 @@
 
 namespace App\Integracao\Infrastructure\Parsers\Models;
 
-
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
@@ -10,8 +9,6 @@ use DiDom\Document;
 use Carbon\Carbon;
 use Storage;
 use Image;
-
-
 use App\User;
 use App\Imovel;
 use App\Bairro;
@@ -26,10 +23,8 @@ use App\CondominiumData;
 use App\AnuncioBeneficio;
 use App\Services\AnuncioService;
 use App\Integracao\Infrastructure\Parsers\Models\XMLBaseParser;
-
-
+use Illuminate\Support\Facades\Log;
 use App\Services\InviteService;
-
 
 class ImobiBrasilModel extends XMLBaseParser {
     public function __construct(Document $xml, Integracao $integration) {
@@ -37,32 +32,28 @@ class ImobiBrasilModel extends XMLBaseParser {
         $this->startIntegration();
     }
 
-    
-    
+
+
     protected function parserXml() : Void {
         $imoveis = $this->getXml()->find('imovel');
         $this->imoveisCount = count($imoveis);
 
         foreach ($imoveis as $index => $imovel) {
-            
-
-
-
 
             $data = [];
             $data['CodigoImovel'] = NULL;
             $ref = $imovel->find('ref');
-            $data['CodigoImovel'] = count($ref) > 0 ? trim($ref[0]->text()) : ''; 
+            $data['CodigoImovel'] = count($ref) > 0 ? trim($ref[0]->text()) : '';
             if (!$data['CodigoImovel'] || empty($data['CodigoImovel'])) {
-                $data['CodigoImovel'] = count($ref) > 0 ? trim($ref[0]->text()) : ''; 
+                $data['CodigoImovel'] = count($ref) > 0 ? trim($ref[0]->text()) : '';
             }
             if (empty($data['CodigoImovel'])) {
                 $id = $imovel->find('id');
-                $data['CodigoImovel'] = count($id) > 0 ? trim($id[0]->text()) : ''; 
+                $data['CodigoImovel'] = count($id) > 0 ? trim($id[0]->text()) : '';
             }
 
             $data['Subtitle'] = NULL;
-            $subTitle = $imovel->find('titulo'); 
+            $subTitle = $imovel->find('titulo');
             if (count($subTitle)) {
                 $data['Subtitle'] = $subTitle[0]->text();
             }
@@ -70,7 +61,7 @@ class ImobiBrasilModel extends XMLBaseParser {
             $data['Descricao'] = '';
             if ($imovel->has('descricao')) {
                 $descricao = $imovel->find('descricao');
-                $data['Descricao'] = count($descricao) > 0 ? $descricao[0]->text() : ''; 
+                $data['Descricao'] = count($descricao) > 0 ? $descricao[0]->text() : '';
             }
 
             $data['PrecoVenda'] = 0;
@@ -78,7 +69,7 @@ class ImobiBrasilModel extends XMLBaseParser {
             $data['PrecoTemporada'] = 0;
 
             $transacao = $imovel->find('transacao');
-            $data['TipoOferta'] = count($transacao) > 0 ? $transacao[0]->text() : ''; 
+            $data['TipoOferta'] = count($transacao) > 0 ? $transacao[0]->text() : '';
             $offerType = strtolower(trim($data['TipoOferta']));
             if (str_contains($offerType, 'venda')) {
                 $data['TipoOferta'] = 1;
@@ -94,7 +85,7 @@ class ImobiBrasilModel extends XMLBaseParser {
                 $data['PrecoTemporada'] = count($valor) > 0 ? $valor[0]->text() : 0;
             } else {
                 $this->toLog[] = "Tentativa de identificar o TipoOferta durante a analise no xml, o imóvel não foi inserido. Tipo de Oferta no XML: \"{$data['TipoOferta']}\" - trimed(com regex): \"$offerType\" - CodigoImovel(no XML) do Imóvel: {$data['CodigoImovel']}.";
-                continue; 
+                continue;
             }
 
             if (empty(trim($data['PrecoVenda']))) {
@@ -107,25 +98,22 @@ class ImobiBrasilModel extends XMLBaseParser {
             if (empty(trim($data['PrecoTemporada']))) {
                 $data['PrecoTemporada'] = 0;
             }
-      
-            $data['Spotlight'] = 0; 
-            $data['Highlighted'] = 0; 
+
+            $data['Spotlight'] = 0;
+            $data['Highlighted'] = 0;
             if ($imovel->has('destacado')) {
                 $destacado = $imovel->find('destacado');
                 $data['Highlighted'] = count($destacado) > 0 && $destacado[0]->text() ? 1 : 0;
             }
-            $data['GarantiaAluguel'] = NULL; 
-            
+            $data['GarantiaAluguel'] = NULL;
 
-
-  
-            $data['ValorIPTU'] = NULL; 
+            $data['ValorIPTU'] = NULL;
             if ($imovel->has('valor_iptu')) {
                 $valorIptu = $imovel->find('valor_iptu');
                 $data['ValorIPTU'] = count($valorIptu) > 0 ? $valorIptu[0]->text() : NULL;
             }
-            
-            $data['PrecoCondominio'] = NULL; 
+
+            $data['PrecoCondominio'] = NULL;
             if ($imovel->has('valor_condominio')) {
                 $valorCondominio = $imovel->find('valor_condominio');
                 $data['PrecoCondominio'] = count($valorCondominio) > 0 ? $valorCondominio[0]->text() : NULL;
@@ -134,43 +122,34 @@ class ImobiBrasilModel extends XMLBaseParser {
                 }
             }
 
-            $data['Permuta'] = 0; 
+            $data['Permuta'] = 0;
 
-            $data['Andares'] = NULL; 
+            $data['Andares'] = NULL;
 
-            $data['UnidadesAndar'] = NULL; 
-            
+            $data['UnidadesAndar'] = NULL;
 
+            $data['Torres'] = NULL;
 
-
-            $data['Torres'] = NULL; 
-            
-
-
-
-            $data['Construtora'] = 0; 
+            $data['Construtora'] = 0;
             if ($imovel->has('Construtora')) {
                 $construtora = $imovel->find('Construtora');
                 $data['Construtora'] = count($construtora) > 0 ? $construtora[0]->text() : 0;
             }
 
-            $data['MostrarEndereco'] = 2; 
+            $data['MostrarEndereco'] = 2;
 
-            $data['AreaTotal'] = NULL; 
+            $data['AreaTotal'] = NULL;
             if ($imovel->has('area_total')) {
                 $areaTotal = $imovel->find('area_total');
                 $data['AreaTotal'] = count($areaTotal) > 0 ? $areaTotal[0]->text() : NULL;
             }
 
             $tipoImovel = $imovel->find('tipoimovel');
-            $data['TipoImovel'] = count($tipoImovel) > 0 ? $tipoImovel[0]->text() : ''; 
+            $data['TipoImovel'] = count($tipoImovel) > 0 ? $tipoImovel[0]->text() : '';
             $data['NomeImovel'] = "";
-            $data['Novo'] = NULL; 
-            
+            $data['Novo'] = NULL;
 
-
-
-            $data['AreaUtil'] = 0; 
+            $data['AreaUtil'] = 0;
             if ($imovel->has('area_privativa')) {
                 $areaPrivativa = $imovel->find('area_privativa');
                 $data['AreaUtil'] = count($areaPrivativa) > 0 ? $areaPrivativa[0]->text() : 0;
@@ -179,7 +158,7 @@ class ImobiBrasilModel extends XMLBaseParser {
                 $data['AreaUtil'] = 0;
             }
 
-            $data['AreaTerreno'] = 0; 
+            $data['AreaTerreno'] = 0;
             if ($imovel->has('area_terreno')) {
                 $areaTerreno = $imovel->find('area_terreno');
                 $data['AreaTerreno'] = count($areaTerreno) > 0 ? $areaTerreno[0]->text() : 0;
@@ -188,7 +167,7 @@ class ImobiBrasilModel extends XMLBaseParser {
                 $data['AreaTerreno'] = 0;
             }
 
-            $data['AreaConstruida'] = NULL; 
+            $data['AreaConstruida'] = NULL;
             if ($imovel->has('area_construida')) {
                 $areaConstruida = $imovel->find('area_construida');
                 $data['AreaConstruida'] = count($areaConstruida) > 0 ? $areaConstruida[0]->text() : NULL;
@@ -197,70 +176,70 @@ class ImobiBrasilModel extends XMLBaseParser {
                 $data['AreaConstruida'] = 0;
             }
 
-            $data['AnoConstrucao'] = 0; 
+            $data['AnoConstrucao'] = 0;
             if ($imovel->has('ano_construcao')) {
                 $anoConstrucao = $imovel->find('ano_construcao');
                 $data['AnoConstrucao'] = count($anoConstrucao) > 0 ? $anoConstrucao[0]->text() : 0;
             }
 
-            $data['QtdDormitorios'] = 0; 
+            $data['QtdDormitorios'] = 0;
             if ($imovel->has('dormitorios')) {
                 $dormitorios = $imovel->find('dormitorios');
                 $data['QtdDormitorios'] = count($dormitorios) > 0 ? $dormitorios[0]->text() : 0;
             }
 
-            $data['QtdSuites'] = NULL; 
+            $data['QtdSuites'] = NULL;
             if ($imovel->has('suites')) {
                 $data['QtdSuites'] = $imovel->find('suites')[0]->text();
             }
 
-            $data['QtdBanheiros'] = 0; 
+            $data['QtdBanheiros'] = 0;
             if ($imovel->has('banheiro')) {
                 $data['QtdBanheiros'] = $imovel->find('banheiro')[0]->text();
             }
 
-            $data['QtdVagas'] = 0; 
+            $data['QtdVagas'] = 0;
             if ($imovel->has('vagas')) {
                 $data['QtdVagas'] = $imovel->find('vagas')[0]->text();
             }
 
             $data['Features'] = [];
 
-            $data['UF'] = $imovel->find('endereco_estado')[0]->text(); 
+            $data['UF'] = $imovel->find('endereco_estado')[0]->text();
             $data['Cidade'] = '';
             if ($imovel->has('endereco_cidade')) {
-                $data['Cidade'] = $imovel->find('endereco_cidade')[0]->text(); 
+                $data['Cidade'] = $imovel->find('endereco_cidade')[0]->text();
             }
 
-            $data['Bairro'] = $imovel->find('endereco_bairro')[0]->text(); 
+            $data['Bairro'] = $imovel->find('endereco_bairro')[0]->text();
             $data['BairroComercial'] = NULL;
 
             $data['CEP'] = 0;
-           
-            $cep = $imovel->find('endereco_cep'); 
+
+            $cep = $imovel->find('endereco_cep');
             if (count($cep)) {
                 $data['CEP'] = $cep[0]->text();
             }
 
-            $data['Endereco'] = ''; 
+            $data['Endereco'] = '';
             if ($imovel->has('endereco_logradouro')) {
                 $data['Endereco'] = $imovel->find('endereco_logradouro')[0]->text();
             }
 
-            $data['Numero'] = NULL; 
+            $data['Numero'] = NULL;
             if ($imovel->has('endereco_numero')) {
                 $data['Numero'] = $imovel->find('endereco_numero')[0]->text();
             }
 
-            $data['Complemento'] = NULL; 
+            $data['Complemento'] = NULL;
             if ($imovel->has('endereco_complemento')) {
                 $data['Complemento'] = $imovel->find('endereco_complemento')[0]->text();
             }
 
-            $data['Latitude'] = NULL; 
-            $data['Longitude'] = NULL; 
+            $data['Latitude'] = NULL;
+            $data['Longitude'] = NULL;
 
-            $data['Video'] = $imovel->find('video')[0]->text(); 
+            $data['Video'] = $imovel->find('video')[0]->text();
 
             $data['images'] = [];
                 $images = $imovel->find('fotos');
@@ -273,7 +252,7 @@ class ImobiBrasilModel extends XMLBaseParser {
                             ++$imagesCounter;
                         }
 
-                        if ($imagesCounter == 20) { 
+                        if ($imagesCounter == 20) {
                             break;
                         }
                     }
@@ -283,169 +262,111 @@ class ImobiBrasilModel extends XMLBaseParser {
         }
     }
 
-    
-    
+
+
     protected function prepareXmlData() : Void {
         foreach ($this->data as $key => $imovel) {
-            
+
             $imovel['CodigoImovel'] = trim($imovel['CodigoImovel']);
             $this->imovelCode = $imovel['CodigoImovel'];
 
-            
             $imovelTypeAndName = $this->parserImovelType($imovel['TipoImovel']);
             $imovel['TipoImovel'] = $imovelTypeAndName['TipoImovel'];
             $imovel['NomeImovel'] = $imovelTypeAndName['NomeImovel'];
 
-            
             $imovel['Descricao'] = $this->parserDescription($imovel['Descricao']);
 
-            
             if ($imovel['Subtitle']) {
                 $imovel['Subtitle'] = $this->parserDescription($imovel['Subtitle']);
             }
 
-            
             if ($imovel['PrecoVenda']) {
                 $imovel['PrecoVenda'] = convertToNumber($imovel['PrecoVenda']);
             }
 
-            
             if ($imovel['PrecoLocacao']) {
                 $imovel['PrecoLocacao'] = convertToNumber($imovel['PrecoLocacao']);
             }
 
-            
             if ($imovel['PrecoTemporada']) {
                 $imovel['PrecoTemporada'] = convertToNumber($imovel['PrecoTemporada']);
             }
 
-            
-            
-
-            
-            
-
-            
             if ($imovel['GarantiaAluguel']) {
                 $imovel['GarantiaAluguel'] = $this->parserGuarantee($imovel['GarantiaAluguel']);
             }
 
-            
-            
-            
-            
-            
-
-            
             if ($imovel['Novo']) {
                 $imovel['Novo'] = $this->parserStatus($imovel['Novo']);
             }
 
-            
-
-            
             if ($imovel['AreaUtil']) {
                 $imovel['AreaUtil'] = $this->parserAreaUtil($imovel['AreaUtil']);
             }
 
-            
             if ($imovel['AreaConstruida']) {
                 $imovel['AreaConstruida'] = $this->parserAreaConstruida($imovel['AreaConstruida']);
             }
 
-            
             if ($imovel['AreaTotal']) {
                 $imovel['AreaTotal'] = $this->parserAreaTotal($imovel['AreaTotal']);
             }
 
-            
             if ($imovel['AreaTerreno']) {
                 $imovel['AreaTerreno'] = $this->parserAreaTerreno($imovel['AreaTerreno']);
             }
 
-            
-            
-            
-            
-            
-            
-
-            
             if (count($imovel['Features'])) {
                 $imovel['Features'] = $this->parserFeatures($imovel['Features']);
             }
 
-            
-
-            
-            if ($imovel['UF'] && mb_strlen($imovel['UF']) > 2) { 
+            if ($imovel['UF'] && mb_strlen($imovel['UF']) > 2) {
                 $imovel['UF'] = $this->parserUF($imovel['UF']);
             }
 
-            
             $imovel['Cidade'] = unicode_conversor($imovel['Cidade']);
 
-            
             $imovel['Bairro'] = unicode_conversor($imovel['Bairro']);
-            
-            
-            
-            
+
             $imovel['CEP'] = $this->parserCEP($imovel['CEP']);
 
-            
             if ($imovel['Endereco']) {
                 $imovel['Endereco'] = str_replace(',', '', $imovel['Endereco']);
             }
 
-            
-            
-            
-            
-            
-            
-
-            
-
-            
-            if (count($imovel['images'])) { 
+            if (count($imovel['images'])) {
                 $imovel['images'] = $this->parserImageUrl($imovel['images']);
             }
 
-            
             $imovelTitleAndSlug = $this->parserImovelTitleAndSlug($imovel);
             $imovel['ImovelTitle'] = $imovelTitleAndSlug['ImovelTitle'];
             $imovel['ImovelSlug'] = $imovelTitleAndSlug['ImovelSlug'];
 
-            
             if ($imovel['Video']) {
                 $imovel['Video'] = $this->parserYoutubeVideo($imovel['Video']);
             }
 
-            
             $imovel['valor_m2'] = $this->parserValorM2($imovel['PrecoVenda'], $imovel['AreaUtil']);
 
-            
             $imovel['NegotiationId'] = $this->parserNegotiation($imovel);
 
-            
             $imovel['CidadeSlug'] = Str::slug($imovel['Cidade']);
             $imovel['BairroSlug'] = Str::slug($imovel['Bairro']);
 
-            
             $this->data[$key] = $imovel;
         }
 
-        $this->data = collect($this->data);
-        $duplicatesEntry = $this->data->duplicates('CodigoImovel');
+        $dataCollection = collect($this->data);
+        $duplicatesEntry = $dataCollection->duplicates('CodigoImovel');
         foreach ($duplicatesEntry as $key => $value) {
-            $this->data->forget($key);
+            $dataCollection->forget($key);
         }
 
         if ($duplicatesEntry->count()) {
             $duplicatesIds = implode(" - ", $duplicatesEntry->toArray());
             $this->toLog[] = "Os seguintes imóveis não foram inseridos por duplicidade(Baseado no código do imóvel): {$duplicatesIds}.";
         }
+        $this->data = $dataCollection;
     }
 
     private function getOfferType(Array $season, Array $rent, Array $sale) : Int {
@@ -465,25 +386,25 @@ class ImobiBrasilModel extends XMLBaseParser {
             $isSale = intval($sale[0]->text());
         }
 
-        if (!$isSale && !$isRent && !$isSeason) {            
+        if (!$isSale && !$isRent && !$isSeason) {
             return 5;
-        } elseif (!$isSale) {      
-            if (!$isRent) {       
+        } elseif (!$isSale) {
+            if (!$isRent) {
                 return 3;
-            } elseif (!$isSeason) {       
+            } elseif (!$isSeason) {
                 return 6;
-            } else {      
+            } else {
                 return 1;
             }
-        } elseif (!$isRent) {      
-            if (!$isSeason) {       
+        } elseif (!$isRent) {
+            if (!$isSeason) {
                 return 7;
-            } else {      
+            } else {
                 return 2;
             }
-        } elseif (!$isSeason) {       
+        } elseif (!$isSeason) {
             return 4;
-        } else {             
+        } else {
             return 1;
         }
     }
@@ -503,50 +424,18 @@ class ImobiBrasilModel extends XMLBaseParser {
         ];
     }
 
-    protected function parserOfferType(String $offerType, $precoLocacao, $precoTemporada) : Int {
-        
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    protected function parserOfferType(String $offerType, $precoLocacao, $precoTemporada) : Int
+    {
+        return 1;
     }
 
     protected function parserDescription(String $description) : String {
         $cleanedDescription = remove_emoji($description);
 
-	    $cleanedDescription = trim($cleanedDescription); 
-	    if (!preg_match('//u', $cleanedDescription)) {
-		    $cleanedDescription = utf8_encode($cleanedDescription);
-	    }
+        $cleanedDescription = trim($cleanedDescription);
+        if (!preg_match('//u', $cleanedDescription)) {
+            $cleanedDescription = utf8_encode($cleanedDescription);
+        }
 
         return cleanAsc($cleanedDescription);
     }
@@ -585,7 +474,7 @@ class ImobiBrasilModel extends XMLBaseParser {
             case 'em construção':
                 return 2;
             break;
-            case 'lançamento':  
+            case 'lançamento':
                 return 3;
             break;
             default:
@@ -655,32 +544,12 @@ class ImobiBrasilModel extends XMLBaseParser {
         $toDownload = [];
         foreach ($images as $url) {
             $bckpUrl = $url;
-            $url = trim(preg_replace('/\s\s+/', '', $url)); 
+            $url = trim(preg_replace('/\s\s+/', '', $url));
             $url = filter_var($url, FILTER_SANITIZE_URL);
             if (!($url = filter_var($url, FILTER_VALIDATE_URL))) {
                 $this->adsIMGNFound[] = $this->imovelCode;
                 continue;
             }
-
-            
-            
-            
-            
-		    
-            
-            
-            
-            
-		    
-            
-            
-
-            
-            
-            
-            
-            
-            
 
             $toDownload[] = $url;
         }
@@ -691,7 +560,7 @@ class ImobiBrasilModel extends XMLBaseParser {
     protected function parserCEP(String $cep) : String {
         if ($cep) {
             $cep = trim(preg_replace('/\s\s+/', '', $cep));
-            $cep = str_replace(".", "", str_replace(" ", "", $cep));  
+            $cep = str_replace(".", "", str_replace(" ", "", $cep));
 
             if (stristr($cep, '-') == false) {
                 $cep = substr_replace($cep, '-', 5, 0 );
@@ -707,12 +576,12 @@ class ImobiBrasilModel extends XMLBaseParser {
 
     protected function parserImovelTitleAndSlug(Array $imovel) : Array {
         $imovelTitle = $imovel['NomeImovel'];
-        
+
         if (($imovel['TipoImovel'] <= 5) || ($imovel['TipoImovel'] >= 7 && $imovel['TipoImovel'] <= 9)
         || ($imovel['TipoImovel'] == 11) || ($imovel['TipoImovel'] >= 19 && $imovel['TipoImovel'] <= 22)) {
             if ($imovel['QtdDormitorios'] == 1) {
                 $imovelTitle = "$imovelTitle com {$imovel['QtdDormitorios']} Quarto";
-            } else if($imovel['QtdDormitorios'] > 1) {
+            } elseif($imovel['QtdDormitorios'] > 1) {
                 $imovelTitle = "$imovelTitle com {$imovel['QtdDormitorios']} Quartos";
             }
         }
@@ -743,20 +612,20 @@ class ImobiBrasilModel extends XMLBaseParser {
 
         if ($imovel['AreaUtil'] > 0) {
             $imovelTitle = $imovelTitle.number_format($imovel['AreaUtil'], 0, ",", ".")." m²";
-        } else if ($imovel['AreaConstruida'] > 0) {
+        } elseif ($imovel['AreaConstruida'] > 0) {
             $imovelTitle = $imovelTitle.number_format($imovel['AreaConstruida'], 0, ",", ".")." m²";
-        } else if ($imovel['AreaTotal'] > 0) {
+        } elseif ($imovel['AreaTotal'] > 0) {
             $imovelTitle = $imovelTitle.number_format($imovel['AreaTotal'], 0, ",", ".")." m²";
-        } else if ($imovel['AreaTerreno'] > 0) {
+        } elseif ($imovel['AreaTerreno'] > 0) {
             $imovelTitle = $imovelTitle.number_format($imovel['AreaTerreno'], 0, ",", ".")." m²";
         }
-        
+
         if ($imovel['Bairro'] != null) {
             $imovelTitle = $imovelTitle." em ". ucwords(mb_strtolower($imovel['Bairro']));
             if ($imovel['Cidade'] != null) {
                 $imovelTitle = $imovelTitle." - ".ucwords(mb_strtolower($imovel['Cidade']));
             }
-        } else if ($imovel['Cidade'] != null) {
+        } elseif ($imovel['Cidade'] != null) {
             $imovelTitle = $imovelTitle." em ".ucwords(mb_strtolower($imovel['Cidade']));
         }
 
@@ -804,12 +673,12 @@ class ImobiBrasilModel extends XMLBaseParser {
         return NULL;
     }
 
-    
+
     protected function insertXmlData() : Void {
         $user_id = $this->integration->user->id;
         $userAnuncios = Anuncio::with(['endereco', 'condominiumData', 'anuncioBeneficio', 'gallery'])
         ->where('user_id', $user_id)
-        ->where('xml', 1) 
+        ->where('xml', 1)
         ->orderBy('id', 'ASC')
         ->get();
 
@@ -839,11 +708,17 @@ class ImobiBrasilModel extends XMLBaseParser {
 
         foreach ($this->data as $index => $imovel) {
             if ($imovel['TipoOferta'] == -1 || $imovel['NegotiationId'] == -1) {
+                Log::channel('integration')->info('Imóvel ignorado por oferta inválida', [
+                    'integration_id' => $this->integration->id,
+                    'codigo_imovel' => $imovel['CodigoImovel'] ?? null,
+                    'tipo_oferta' => $imovel['TipoOferta'],
+                    'negotiation_id' => $imovel['NegotiationId']
+                ]);
                 continue;
             }
 
             $this->quantityMade++;
-            
+
             $isNewAnuncio = false;
 
             $cepToFind = $imovel['CEP'];
@@ -854,7 +729,7 @@ class ImobiBrasilModel extends XMLBaseParser {
 
             $condominioId = 0;
             if ($condominium) {
-                $condominioId = $condominium->id;  
+                $condominioId = $condominium->id;
             }
             $newAnuncioInfo = [
                 'user_id' => $user_id,
@@ -889,25 +764,35 @@ class ImobiBrasilModel extends XMLBaseParser {
                 'exchange' => $imovel['Permuta'],
                 'youtube' => $imovel['Video']
             ];
-      
+
             $imovelId = 0;
             $existingImovel = $userAnuncios->whereStrict('codigo', $imovel['CodigoImovel'])->last();
-            if ($existingImovel) { 
+            if ($existingImovel) {
                 if ($existingImovel->status === 'inativado') {
                     continue;
                 }
-                if ($this->isDifferentImovel($existingImovel, $newAnuncioInfo)) { 
+                if ($this->isDifferentImovel($existingImovel, $newAnuncioInfo)) {
                     $newAnuncioInfo['updated_at'] = Carbon::now('America/Sao_Paulo');
                     $existingImovel->update($newAnuncioInfo);
                 }
 
                 $imovelId = $existingImovel->id;
-            } else { 
+            } else {
                 $newAnuncioInfo['created_at'] = Carbon::now('America/Sao_Paulo');
                 $newAnuncio = Anuncio::create($newAnuncioInfo);
                 $isNewAnuncio = true;
                 $imovelId = $newAnuncio->id;
             }
+
+            Log::channel('integration_items')->info('Imóvel processado', [
+                'integration_id' => $this->integration->id,
+                'user_id' => $user_id,
+                'anuncio_id' => $imovelId,
+                'codigo_imovel' => $imovel['CodigoImovel'] ?? null,
+                'is_new' => $isNewAnuncio,
+                'negotiation_id' => $imovel['NegotiationId'],
+                'tipo_imovel' => $imovel['TipoImovel']
+            ]);
 
             if ($condominium) {
                 $builder = NULL;
@@ -927,12 +812,12 @@ class ImobiBrasilModel extends XMLBaseParser {
                     "number_of_towers" => $imovel['Torres'],
                     "construction_year" => $imovel['AnoConstrucao'],
                     "terrain_size" => $imovel['AreaTerreno']
-                ];   
+                ];
 
                 $condominiumDataRet = $condominiumsData->filter(function($item) use ($imovelId) {
                     return $item->ad_id == $imovelId;
                 })->first();
-                    
+
                 if ($condominiumDataRet) {
                     if ($this->isDifferentCondominium($condominiumDataRet, $condominiumData)) {
                         $condominiumDataRet->update($condominiumData);
@@ -1028,12 +913,36 @@ class ImobiBrasilModel extends XMLBaseParser {
                                     );
                                     $fileData = file_get_contents($url, false, $context);
 
-                                    
                                     $imageObject = Image::make($fileData);
                                     $originalData = $imageObject->encode('webp', 85)->getEncoded();
-                                    Storage::disk('do_spaces')->put($s3Path, $originalData, 'public');
-
+                                    // Log antes do upload S3
+                                    \Log::channel('integration')->info("📤 S3: Starting image upload", [
+                                        'integration_id' => $this->integration->id,
+                                        'imovel_id' => $imovelId,
+                                        'codigo_imovel' => $imovel['CodigoImovel'] ?? null,
+                                        'image_url' => $url,
+                                        's3_path' => $s3Path,
+                                        'image_size_bytes' => strlen($originalData),
+                                        'image_dimensions' => [
+                                            'width' => $imageObject->width(),
+                                            'height' => $imageObject->height()
+                                        ]
+                                    ]);
                                     
+                                    $uploadStartTime = microtime(true);
+                                    Storage::disk('do_spaces')->put($s3Path, $originalData, 'public');
+                                    $uploadTime = microtime(true) - $uploadStartTime;
+                                    
+                                    // Log após upload S3 bem-sucedido
+                                    \Log::channel('integration')->info("✅ S3: Image upload successful", [
+                                        'integration_id' => $this->integration->id,
+                                        'imovel_id' => $imovelId,
+                                        'codigo_imovel' => $imovel['CodigoImovel'] ?? null,
+                                        's3_path' => $s3Path,
+                                        'upload_time_seconds' => round($uploadTime, 3),
+                                        'upload_speed_mbps' => round((strlen($originalData) / 1024 / 1024) / $uploadTime, 2)
+                                    ]);
+
                                     $basePath = public_path("images/$imageFileName");
                                     $imageObject->save($basePath);
 
@@ -1053,7 +962,13 @@ class ImobiBrasilModel extends XMLBaseParser {
                         }
 
                         if ($imagesCounter) {
-                            AnuncioImages::insert($imagesToInsert);
+                            $this->insertOrUpdateImages($imovelId, $imagesToInsert, 'inserted');
+                            Log::channel('integration_items')->info('Imagens inseridas para imóvel', [
+                                'integration_id' => $this->integration->id,
+                                'anuncio_id' => $imovelId,
+                                'codigo_imovel' => $imovel['CodigoImovel'] ?? null,
+                                'images_count' => $imagesCounter
+                            ]);
                             if ($this->isManual) {
                                 echo "Imagem Nº: $index - Anúncio Código: {$imovel['CodigoImovel']}.\n";
                             }
@@ -1064,15 +979,13 @@ class ImobiBrasilModel extends XMLBaseParser {
                     $toDownload = [];
                     $toCompare = [];
 
-                    
                     foreach ($imovel['images'] as $key => $url) {
                         $imageFileName = 'integration/' . md5($user_id . $imovelId . basename($url)) . '.webp';
-                        
-                        
+
                         $toCompare[] = $imageFileName;
-                        
+
                             $toDownload[] = ['url' => $url, 'imageFileName' => $imageFileName];
-                        
+
                     }
 
                     if (count($toDownload)) {
@@ -1099,12 +1012,36 @@ class ImobiBrasilModel extends XMLBaseParser {
                                     );
                                     $fileData = file_get_contents($url, false, $context);
 
-                                    
                                     $imageObject = Image::make($fileData);
                                     $originalData = $imageObject->encode('webp', 85)->getEncoded();
-                                    Storage::disk('do_spaces')->put($s3Path, $originalData, 'public');
-
+                                    // Log antes do upload S3
+                                    \Log::channel('integration')->info("📤 S3: Starting image upload", [
+                                        'integration_id' => $this->integration->id,
+                                        'imovel_id' => $imovelId,
+                                        'codigo_imovel' => $imovel['CodigoImovel'] ?? null,
+                                        'image_url' => $url,
+                                        's3_path' => $s3Path,
+                                        'image_size_bytes' => strlen($originalData),
+                                        'image_dimensions' => [
+                                            'width' => $imageObject->width(),
+                                            'height' => $imageObject->height()
+                                        ]
+                                    ]);
                                     
+                                    $uploadStartTime = microtime(true);
+                                    Storage::disk('do_spaces')->put($s3Path, $originalData, 'public');
+                                    $uploadTime = microtime(true) - $uploadStartTime;
+                                    
+                                    // Log após upload S3 bem-sucedido
+                                    \Log::channel('integration')->info("✅ S3: Image upload successful", [
+                                        'integration_id' => $this->integration->id,
+                                        'imovel_id' => $imovelId,
+                                        'codigo_imovel' => $imovel['CodigoImovel'] ?? null,
+                                        's3_path' => $s3Path,
+                                        'upload_time_seconds' => round($uploadTime, 3),
+                                        'upload_speed_mbps' => round((strlen($originalData) / 1024 / 1024) / $uploadTime, 2)
+                                    ]);
+
                                     $basePath = public_path("images/$imageFileName");
                                     $imageObject->save($basePath);
 
@@ -1124,7 +1061,13 @@ class ImobiBrasilModel extends XMLBaseParser {
                         }
 
                         if ($imagesCounter) {
-                            AnuncioImages::insert($imagesToInsert);
+                            $this->insertOrUpdateImages($imovelId, $imagesToInsert, 'updated');
+                            Log::channel('integration_items')->info('Imagens atualizadas para imóvel', [
+                                'integration_id' => $this->integration->id,
+                                'anuncio_id' => $imovelId,
+                                'codigo_imovel' => $imovel['CodigoImovel'] ?? null,
+                                'images_count' => $imagesCounter
+                            ]);
                             if ($this->isManual) {
                                 echo "Imagem(update) Nº: $index - Anúncio Código: {$imovel['CodigoImovel']}.\n";
                             }
@@ -1134,7 +1077,7 @@ class ImobiBrasilModel extends XMLBaseParser {
             }
         }
         $anuncioService = new AnuncioService;
-		$anuncioService->validateAdPoints($user_id);
+        $anuncioService->validateAdPoints($user_id);
 
         $this->logDone();
 
@@ -1145,14 +1088,6 @@ class ImobiBrasilModel extends XMLBaseParser {
             'updated_at' => Carbon::now()->toDateTimeString(),
             'last_integration' => Carbon::now()->toDateTimeString()
         ];
-
-        
-
-
-
-
-
-
 
         $this->integration->update($integrationInfo);
         if ($this->canUpdateIntegrationStatus()) {

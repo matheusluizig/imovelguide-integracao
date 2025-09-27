@@ -26,7 +26,6 @@ class AutomaticPlanIntegration extends Command
             $isLight = $this->option('light');
             $isForce = $this->option('force');
 
-            
             if ($isForce) {
                 $searchFrom = now()->subDays(30);
                 $this->info('🔧 Modo FORCE: Processando últimos 30 dias');
@@ -39,7 +38,6 @@ class AutomaticPlanIntegration extends Command
                 $this->info('🔄 Modo NORMAL: Processando desde última execução');
             }
 
-            
             $integrations = Integracao::join('integrations_queues', 'integracao_xml.id', '=', 'integrations_queues.integration_id')
                 ->join('users', 'integracao_xml.user_id', '=', 'users.id')
                 ->where('integracao_xml.status', Integracao::XML_STATUS_NOT_INTEGRATED)
@@ -49,7 +47,7 @@ class AutomaticPlanIntegration extends Command
                 ->where('integracao_xml.updated_at', '>=', $searchFrom)
                 ->select('integracao_xml.*')
                 ->orderBy('integracao_xml.updated_at', 'desc')
-                ->limit(100) 
+                ->limit(100)
                 ->get();
 
             if ($integrations->isEmpty()) {
@@ -60,12 +58,11 @@ class AutomaticPlanIntegration extends Command
 
             $this->info("📊 Encontradas {$integrations->count()} integrações de plano pendentes");
 
-            
             $activeJobs = DB::table('jobs')
                 ->where('queue', 'priority-integrations')
                 ->count();
 
-            $maxJobs = 2; 
+            $maxJobs = 6;
             $availableSlots = max(0, $maxJobs - $activeJobs);
 
             if ($availableSlots === 0) {
@@ -75,30 +72,27 @@ class AutomaticPlanIntegration extends Command
 
             $this->info("🔄 Slots disponíveis: {$availableSlots}");
 
-            
             $processed = 0;
-            $chunkSize = min($availableSlots, 10); 
+            $chunkSize = min($availableSlots, 10);
             $integrationIds = $integrations->take($chunkSize)->pluck('id')->toArray();
 
-            
             $existingJobs = DB::table('jobs')
                 ->where('queue', 'priority-integrations')
                 ->whereIn(DB::raw('JSON_UNQUOTE(JSON_EXTRACT(payload, "$.integrationId"))'), $integrationIds)
                 ->pluck(DB::raw('JSON_UNQUOTE(JSON_EXTRACT(payload, "$.integrationId"))'))
                 ->map(function($id) {
-                    return (int) $id; 
+                    return (int) $id;
                 })
                 ->toArray();
 
             foreach ($integrations->take($chunkSize) as $integration) {
                 try {
-                    
+
                     if (in_array($integration->id, $existingJobs)) {
                         $this->line("⏭️ Integração {$integration->id} já está na fila");
                         continue;
                     }
 
-                    
                     ProcessIntegrationJob::dispatch($integration->id, 'priority-integrations');
                     $processed++;
 
@@ -113,7 +107,6 @@ class AutomaticPlanIntegration extends Command
                 }
             }
 
-            
             Cache::put($cacheKey, now()->toDateTimeString(), 3600);
 
             $executionTime = round(microtime(true) - $startTime, 2);

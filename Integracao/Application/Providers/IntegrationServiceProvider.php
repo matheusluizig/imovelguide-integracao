@@ -11,7 +11,7 @@ class IntegrationServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        
+
         $this->app->singleton(IntegrationProcessingService::class, function ($app) {
             return new IntegrationProcessingService(
                 $app->make(IntegrationRepository::class)
@@ -29,7 +29,7 @@ class IntegrationServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        
+
         $this->publishConfig();
     }
 
