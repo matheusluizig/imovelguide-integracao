@@ -53,7 +53,7 @@ class ProcessIntegrationJob implements ShouldQueue
             'memory_start' => memory_get_usage(true)
         ];
 
-        Log::channel('integration')->info("🚀 JOB: Starting ProcessIntegrationJobV2", [
+        Log::channel('integration')->info('🚀 JOB: ProcessIntegrationJob started', [
             'integration_id' => $this->integrationId,
             'context' => $jobContext
         ]);
@@ -63,7 +63,7 @@ class ProcessIntegrationJob implements ShouldQueue
             $this->handleResult($result);
 
         } catch (\Exception $e) {
-            Log::channel('integration')->error("💥 JOB: Unhandled exception", [
+            Log::channel('integration')->error('💥 JOB: Unhandled exception', [
                 'integration_id' => $this->integrationId,
                 'exception' => get_class($e),
                 'message' => $e->getMessage(),
@@ -73,17 +73,7 @@ class ProcessIntegrationJob implements ShouldQueue
             $this->updateStatusOnFailure($e, $jobContext);
             throw $e;
         } finally {
-            try {
-                $slotManager = app(\App\Integracao\Application\Services\IntegrationSlotManager::class);
-                $slotManager->releaseSlot($this->integrationId);
-            } catch (\Exception $slotError) {
-                Log::channel('integration')->error("💀 JOB: CRITICAL - Failed to release slot in finally", [
-                    'integration_id' => $this->integrationId,
-                    'slot_error' => $slotError->getMessage()
-                ]);
-            }
-
-            Log::channel('integration')->info("🏁 JOB: ProcessIntegrationJobV2 completed", [
+            Log::channel('integration')->info('🏁 JOB: ProcessIntegrationJob finished', [
                 'integration_id' => $this->integrationId,
                 'memory_peak' => memory_get_peak_usage(true)
             ]);
@@ -103,13 +93,13 @@ class ProcessIntegrationJob implements ShouldQueue
                 $this->retryNow();
                 break;
             case 'mark_failed':
-                Log::channel('integration')->warning("⚠️ JOB: Integration marked as failed after max attempts", [
+                Log::channel('integration')->error('💥 JOB: Integration marked as failed after max attempts', [
                     'integration_id' => $this->integrationId,
                     'attempts' => $result['attempts'] ?? 0
                 ]);
                 break;
             case 'critical_failure':
-                Log::channel('integration')->error("💀 JOB: Critical failure detected", [
+                Log::channel('integration')->error('💀 JOB: Critical failure detected', [
                     'integration_id' => $this->integrationId,
                     'error' => $result['error'] ?? 'Unknown'
                 ]);
@@ -117,7 +107,7 @@ class ProcessIntegrationJob implements ShouldQueue
                 break;
             default:
                 if (!$result['success']) {
-                    Log::channel('integration')->warning("⚠️ JOB: Completed with failure", [
+                    Log::channel('integration')->error('💥 JOB: Completed without processing items', [
                         'integration_id' => $this->integrationId,
                         'reason' => $result['reason'] ?? 'unknown'
                     ]);
@@ -149,11 +139,6 @@ class ProcessIntegrationJob implements ShouldQueue
         $this->delete();
         self::dispatch($this->integrationId, $this->job?->getQueue())
             ->delay(now()->addSeconds($delaySeconds));
-
-        Log::channel('integration')->info("🔄 JOB: Retry scheduled", [
-            'integration_id' => $this->integrationId,
-            'delay_seconds' => $delaySeconds
-        ]);
     }
 
     /**
@@ -163,10 +148,6 @@ class ProcessIntegrationJob implements ShouldQueue
     {
         $this->delete();
         self::dispatch($this->integrationId, $this->job?->getQueue());
-
-        Log::channel('integration')->info("⚡ JOB: Immediate retry scheduled", [
-            'integration_id' => $this->integrationId
-        ]);
     }
 
     /**
