@@ -85,10 +85,11 @@ class ProcessImageJob implements ShouldQueue
     {
         $imageObject = Image::make($fileData);
         $originalData = $imageObject->encode('webp', 85)->getEncoded();
-        
-        Storage::disk('do_spaces')->put($s3Path, $originalData, 'public');
 
-        $basePath = public_path("images/{$imageFileName}");
+        $this->storePublicObject($s3Path, $originalData);
+
+        $baseDir = $this->ensureLocalDirectory();
+        $basePath = $baseDir . DIRECTORY_SEPARATOR . $imageFileName;
         $imageObject->save($basePath);
 
         $this->createImageVariants($s3Path, $imageFileName);
@@ -112,14 +113,35 @@ class ProcessImageJob implements ShouldQueue
                 $constraint->upsize();
             })->encode('webp', 85)->getEncoded();
 
-            Storage::disk('do_spaces')->put($smallPath, $smallData, 'public');
-            Storage::disk('do_spaces')->put($mediumPath, $mediumData, 'public');
+            $this->storePublicObject($smallPath, $smallData);
+            $this->storePublicObject($mediumPath, $mediumData);
 
         } catch (Exception $e) {
             Log::warning("Erro ao criar variantes da imagem", [
                 'image_file' => $imageFileName,
                 'error' => $e->getMessage()
             ]);
+            throw $e;
+        }
+    }
+
+    private function ensureLocalDirectory(): string
+    {
+        $baseDir = public_path('images');
+        if (!is_dir($baseDir)) {
+            if (!mkdir($baseDir, 0755, true) && !is_dir($baseDir)) {
+                throw new Exception('Falha ao criar diretório local de imagens');
+            }
+        }
+
+        return $baseDir;
+    }
+
+    private function storePublicObject(string $path, string $contents): void
+    {
+        $stored = Storage::disk('do_spaces')->put($path, $contents, 'public');
+        if (!$stored) {
+            throw new Exception("Falha ao armazenar arquivo em {$path}");
         }
     }
 

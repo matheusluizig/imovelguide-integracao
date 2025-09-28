@@ -49,18 +49,20 @@ class IntegrationJobOrchestrator
         $this->jobContext = $jobContext;
         $startTime = microtime(true);
 
-        Log::channel('integration')->info("🚀 ORCHESTRATOR: Starting integration processing", [
+        Log::channel('integration')->info('🚀 ORCHESTRATOR: Processing started', [
             'integration_id' => $integrationId,
             'job_id' => $jobContext['job_id'] ?? null,
             'attempt' => $jobContext['attempt'] ?? 1
         ]);
 
+        $slotAcquired = false;
         try {
             // 1. Tentar adquirir slot
             $slotResult = $this->slotManager->acquireSlot($integrationId);
             if (!$slotResult['acquired']) {
                 return $this->handleSlotUnavailable($integrationId, $slotResult);
             }
+            $slotAcquired = true;
 
             // 2. Carregar e validar dados
             $data = $this->loadIntegrationData($integrationId);
@@ -71,7 +73,7 @@ class IntegrationJobOrchestrator
             $integration = $data['integration'];
             $queue = $data['queue'];
 
-            $this->resetQueueDataAndMarkAsProcessing($integration, $queue);
+            $queue = $this->resetQueueDataAndMarkAsProcessing($integration, $queue);
 
             $result = $this->executeProcessing($integration, $queue, $startTime);
 
@@ -82,7 +84,9 @@ class IntegrationJobOrchestrator
         } finally {
             // CRÍTICO: Sempre liberar slot, mesmo em caso de exceção
             try {
-                $this->slotManager->releaseSlot($integrationId);
+                if ($slotAcquired) {
+                    $this->slotManager->releaseSlot($integrationId);
+                }
             } catch (\Exception $slotError) {
                 Log::channel('integration')->error("💀 ORCHESTRATOR: CRITICAL - Failed to release slot in finally", [
                     'integration_id' => $integrationId,
@@ -101,7 +105,7 @@ class IntegrationJobOrchestrator
                 ]);
             }
 
-            Log::channel('integration')->info("🏁 ORCHESTRATOR: Processing cycle completed", [
+            Log::channel('integration')->info('🏁 ORCHESTRATOR: Processing finished', [
                 'integration_id' => $integrationId,
                 'total_time' => microtime(true) - $startTime
             ]);
@@ -129,13 +133,6 @@ class IntegrationJobOrchestrator
                 ]);
                 return ['success' => false, 'reason' => 'queue_not_found'];
             }
-
-            Log::channel('integration')->info("✅ ORCHESTRATOR: Data loaded successfully", [
-                'integration_id' => $integrationId,
-                'user_id' => $integration->user_id,
-                'queue_status' => $queue->status,
-                'integration_status' => $integration->status
-            ]);
 
             return [
                 'success' => true,
@@ -190,12 +187,6 @@ class IntegrationJobOrchestrator
             return false;
         }
 
-        Log::channel('integration')->info("✅ ORCHESTRATOR: Integration is actively processing", [
-            'integration_id' => $integration->id,
-            'minutes_processing' => $minutesProcessing,
-            'has_recent_activity' => $hasRecentActivity
-        ]);
-
         return true;
     }
 
@@ -248,7 +239,7 @@ class IntegrationJobOrchestrator
      */
     private function handleSlotUnavailable(int $integrationId, array $slotResult): array
     {
-        Log::channel('integration')->info("⏳ ORCHESTRATOR: Slot unavailable", [
+        Log::channel('integration')->warning('⏳ ORCHESTRATOR: Slot unavailable', [
             'integration_id' => $integrationId,
             'reason' => $slotResult['reason']
         ]);
@@ -264,29 +255,18 @@ class IntegrationJobOrchestrator
     /**
      * Resetar dados da queue e marcar como processando (ZERA TODOS OS CAMPOS)
      */
-    private function resetQueueDataAndMarkAsProcessing(Integracao $integration, IntegrationsQueues $queue): void
+    private function resetQueueDataAndMarkAsProcessing(Integracao $integration, IntegrationsQueues $queue): IntegrationsQueues
     {
         $previousStatus = $queue->status;
         $previousAttempts = $queue->attempts ?? 0;
         $isRetry = $queue->status === IntegrationsQueues::STATUS_IN_PROCESS;
 
-        Log::channel('integration')->info('🔄 ORCHESTRATOR: Resetting queue data before processing', [
-            'integration_id' => $integration->id,
-            'queue_id' => $queue->id,
-            'previous_status' => $previousStatus,
-            'previous_attempts' => $previousAttempts,
-            'is_retry' => $isRetry
-        ]);
-
         // Usar o status manager para garantir reset completo e transacional
         $this->statusManager->markAsProcessing($integration, $queue);
 
-        Log::channel('integration')->info('✅ ORCHESTRATOR: Queue reset and processing started', [
-            'integration_id' => $integration->id,
-            'queue_id' => $queue->id,
-            'previous_status' => $previousStatus,
-            'is_retry' => $isRetry
-        ]);
+        $queue->refresh();
+
+        return $queue;
     }
 
     /**
@@ -343,13 +323,6 @@ class IntegrationJobOrchestrator
             'last_integration' => now()
         ]);
 
-        Log::channel('integration')->info("✅ ORCHESTRATOR: Success - integration completed", [
-            'integration_id' => $integration->id,
-            'processed_items' => $processedItems,
-            'total_items' => $totalItems,
-            'execution_time' => $executionTime
-        ]);
-
         return [
             'success' => true,
             'processed_items' => $processedItems,
@@ -395,7 +368,7 @@ class IntegrationJobOrchestrator
             );
         }
 
-        Log::channel('integration')->error("❌ ORCHESTRATOR: Processing failed", [
+        Log::channel('integration')->error('❌ ORCHESTRATOR: Processing failed', [
             'integration_id' => $integration->id,
             'error' => $result['error'] ?? 'Unknown error',
             'attempts' => $attempts,

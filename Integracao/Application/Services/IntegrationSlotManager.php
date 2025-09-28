@@ -128,12 +128,6 @@ LUA;
                 $extra = $scriptResult[2] ?? null;
 
                 if ($count > 0 && $status === 'acquired') {
-                    Log::channel('integration')->info("✅ Integration slot acquired with timeout", [
-                        'integration_id' => $integrationId,
-                        'current_count' => $count,
-                        'timeout_seconds' => $extra
-                    ]);
-
                     return [
                         'acquired' => true,
                         'count' => $count,
@@ -142,27 +136,16 @@ LUA;
                 }
 
                 // Não conseguiu adquirir - tentar autocorreção rápida
-                Log::channel('integration')->info("❌ Could not acquire slot", [
+                Log::channel('integration')->warning('❌ Could not acquire slot', [
                     'integration_id' => $integrationId,
                     'reason' => $status,
                     'details' => $extra
                 ]);
 
                 if (in_array($status, ['max_reached', 'already_active'])) {
-                    // Para already_active, tentar forçar liberação se for a mesma integração
-                    if ($status === 'already_active') {
-                        $this->forceReleaseSlotForRetry($redis, $integrationId);
-                    }
-                    
                     $this->quickReconcileForAcquire($redis, $integrationId);
                     $retry = $this->executeAcquireSlotScript($redis, $integrationId);
                     if (is_array($retry) && ($retry[0] ?? 0) > 0 && ($retry[1] ?? '') === 'acquired') {
-                        Log::channel('integration')->info("✅ Integration slot acquired after retry", [
-                            'integration_id' => $integrationId,
-                            'current_count' => $retry[0],
-                            'timeout_seconds' => $retry[2] ?? null
-                        ]);
-                        
                         return [
                             'acquired' => true,
                             'count' => $retry[0],
@@ -202,22 +185,7 @@ LUA;
             $timeoutRemoved = $redis->hdel(self::SLOT_TIMEOUT_KEY, $integrationId);
 
             if ($wasActive || $timeoutRemoved) {
-                $count = $redis->decr(self::ACTIVE_INTEGRATIONS_COUNT_KEY);
-                if ($count < 0) {
-                    $redis->set(self::ACTIVE_INTEGRATIONS_COUNT_KEY, 0);
-                    $count = 0;
-                }
-
-                Log::channel('integration')->info("✅ Integration slot released", [
-                    'integration_id' => $integrationId,
-                    'remaining_count' => $count,
-                    'was_active' => (bool) $wasActive,
-                    'timeout_removed' => (bool) $timeoutRemoved
-                ]);
-            } else {
-                Log::channel('integration')->debug("Integration slot was not active", [
-                    'integration_id' => $integrationId
-                ]);
+                $this->syncActiveCount($redis);
             }
 
         } catch (\Exception $e) {
@@ -228,39 +196,6 @@ LUA;
 
             // CRÍTICO: Tentar fallback para liberar slot
             $this->forceReleaseSlotFallback($integrationId);
-        }
-    }
-
-    /**
-     * Forçar liberação de slot para retry da mesma integração
-     */
-    private function forceReleaseSlotForRetry($redis, int $integrationId): void
-    {
-        try {
-            Log::channel('integration')->info("🔄 SLOT: Force releasing slot for retry", [
-                'integration_id' => $integrationId
-            ]);
-
-            // Remover da lista ativa
-            $redis->srem(self::ACTIVE_INTEGRATIONS_SET_KEY, $integrationId);
-            // Remover timeout
-            $redis->hdel(self::SLOT_TIMEOUT_KEY, $integrationId);
-            // Decrementar contador
-            $count = $redis->decr(self::ACTIVE_INTEGRATIONS_COUNT_KEY);
-            if ($count < 0) {
-                $redis->set(self::ACTIVE_INTEGRATIONS_COUNT_KEY, 0);
-            }
-
-            Log::channel('integration')->info("✅ SLOT: Force release completed for retry", [
-                'integration_id' => $integrationId,
-                'remaining_count' => max(0, $count)
-            ]);
-
-        } catch (\Exception $e) {
-            Log::channel('integration')->error("❌ SLOT: Failed to force release for retry", [
-                'integration_id' => $integrationId,
-                'error' => $e->getMessage()
-            ]);
         }
     }
 
@@ -314,16 +249,10 @@ LUA;
             if ($queue && !$isInRedis) {
                 // Integração está no DB mas não no Redis - adicionar ao Redis
                 $this->addIntegrationToRedis($redis, $integrationId);
-                Log::channel('integration')->info("🔄 Synced: Added integration to Redis", [
-                    'integration_id' => $integrationId
-                ]);
                 return true;
             } elseif (!$queue && $isInRedis) {
                 // Integração está no Redis mas não no DB - remover do Redis
                 $this->removeIntegrationFromRedis($redis, $integrationId);
-                Log::channel('integration')->info("🔄 Synced: Removed integration from Redis", [
-                    'integration_id' => $integrationId
-                ]);
                 return true;
             }
 
@@ -363,19 +292,13 @@ LUA;
 
             $isInRedis = $redis->sismember(self::ACTIVE_INTEGRATIONS_SET_KEY, $integrationId);
 
-            if ($queue && !$isInRedis) {
-                $this->addIntegrationToRedis($redis, $integrationId);
-                Log::channel('integration')->info("🔄 SYNC: Retry successful - Added to Redis", [
-                    'integration_id' => $integrationId
-                ]);
-                return true;
-            } elseif (!$queue && $isInRedis) {
-                $this->removeIntegrationFromRedis($redis, $integrationId);
-                Log::channel('integration')->info("🔄 SYNC: Retry successful - Removed from Redis", [
-                    'integration_id' => $integrationId
-                ]);
-                return true;
-            }
+                if ($queue && !$isInRedis) {
+                    $this->addIntegrationToRedis($redis, $integrationId);
+                    return true;
+                } elseif (!$queue && $isInRedis) {
+                    $this->removeIntegrationFromRedis($redis, $integrationId);
+                    return true;
+                }
 
             return false;
 
@@ -396,7 +319,7 @@ LUA;
         $timeout = time() + self::SLOT_TIMEOUT_SECONDS;
         $redis->sadd(self::ACTIVE_INTEGRATIONS_SET_KEY, $integrationId);
         $redis->hset(self::SLOT_TIMEOUT_KEY, $integrationId, $timeout);
-        $redis->incr(self::ACTIVE_INTEGRATIONS_COUNT_KEY);
+        $this->syncActiveCount($redis);
         // Definir TTL
         $redis->expire(self::ACTIVE_INTEGRATIONS_SET_KEY, self::ACTIVE_INTEGRATIONS_TTL);
         $redis->expire(self::ACTIVE_INTEGRATIONS_COUNT_KEY, self::ACTIVE_INTEGRATIONS_TTL);
@@ -410,10 +333,7 @@ LUA;
     {
         $redis->srem(self::ACTIVE_INTEGRATIONS_SET_KEY, $integrationId);
         $redis->hdel(self::SLOT_TIMEOUT_KEY, $integrationId);
-        $count = $redis->decr(self::ACTIVE_INTEGRATIONS_COUNT_KEY);
-        if ($count < 0) {
-            $redis->set(self::ACTIVE_INTEGRATIONS_COUNT_KEY, 0);
-        }
+        $this->syncActiveCount($redis);
     }
 
     /**
@@ -443,28 +363,13 @@ LUA;
                 }
 
                 if (!empty($expiredSlots)) {
-                    Log::channel('integration')->info("🧹 Cleaning expired slots", [
-                        'expired_slots' => $expiredSlots,
-                        'count' => count($expiredSlots)
-                    ]);
-
                     foreach ($expiredSlots as $integrationId) {
-                        // Remover do set ativo
                         $this->redisCallWithRetry(fn() => $redis->srem(self::ACTIVE_INTEGRATIONS_SET_KEY, $integrationId));
-                        // Remover timeout
                         $this->redisCallWithRetry(fn() => $redis->hdel(self::SLOT_TIMEOUT_KEY, $integrationId));
-                        // Decrementar contador
-                        $this->redisCallWithRetry(fn() => $redis->decr(self::ACTIVE_INTEGRATIONS_COUNT_KEY));
-
-                        // Reset integração para pending se necessário
                         $this->resetExpiredIntegration($integrationId);
                     }
 
-                    // Garantir contador não negativo
-                    $count = (int) ($this->redisCallWithRetry(fn() => $redis->get(self::ACTIVE_INTEGRATIONS_COUNT_KEY)) ?: 0);
-                    if ($count < 0) {
-                        $this->redisCallWithRetry(fn() => $redis->set(self::ACTIVE_INTEGRATIONS_COUNT_KEY, 0));
-                    }
+                    $this->syncActiveCount($redis);
                 }
 
             } finally {
@@ -503,9 +408,6 @@ LUA;
                     }
                 });
 
-                Log::channel('integration')->info("🔄 Expired integration auto-reset", [
-                    'integration_id' => $integrationId
-                ]);
             }
 
         } catch (\Exception $e) {
@@ -537,7 +439,7 @@ LUA;
                 if (empty($activeIntegrations)) {
                     if ($currentCount > 0) {
                         $redis->set(self::ACTIVE_INTEGRATIONS_COUNT_KEY, 0);
-                        Log::channel('integration')->info("🔧 Reset integration count to 0 - no active integrations");
+                    Log::channel('integration')->warning('🔧 Reset integration count to 0 - no active integrations');
                     }
                     return;
                 }
@@ -628,9 +530,9 @@ LUA;
 
             // Liberar slot no Redis
             $redis->srem(self::ACTIVE_INTEGRATIONS_SET_KEY, $integrationId);
-            $redis->decr(self::ACTIVE_INTEGRATIONS_COUNT_KEY);
+            $this->syncActiveCount($redis);
 
-            Log::channel('integration')->info("🔄 Stuck integration auto-reset", [
+            Log::channel('integration')->warning('🔄 Stuck integration auto-reset', [
                 'integration_id' => $integrationId,
                 'minutes_stuck' => $stuckSlot['minutes']
             ]);
@@ -714,17 +616,24 @@ LUA;
                 if ($now > (int) $expiration) {
                     $this->redisCallWithRetry(fn() => $redis->srem(self::ACTIVE_INTEGRATIONS_SET_KEY, $id));
                     $this->redisCallWithRetry(fn() => $redis->hdel(self::SLOT_TIMEOUT_KEY, $id));
-                    $count = max(0, $count - 1);
                 }
             }
 
-            $this->redisCallWithRetry(fn() => $redis->set(self::ACTIVE_INTEGRATIONS_COUNT_KEY, $count));
+            $this->syncActiveCount($redis);
         } catch (\Throwable $t) {
             Log::channel('integration')->warning('quickReconcileForAcquire failed', [
                 'integration_id' => $integrationId,
                 'error' => $t->getMessage()
             ]);
         }
+    }
+
+    private function syncActiveCount($redis): int
+    {
+        $count = (int) $this->redisCallWithRetry(fn() => $redis->scard(self::ACTIVE_INTEGRATIONS_SET_KEY));
+        $this->redisCallWithRetry(fn() => $redis->set(self::ACTIVE_INTEGRATIONS_COUNT_KEY, $count));
+
+        return $count;
     }
 
     private function getRedisWithRetry()

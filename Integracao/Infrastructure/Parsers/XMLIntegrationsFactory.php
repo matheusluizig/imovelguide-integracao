@@ -96,28 +96,29 @@ class XMLIntegrationsFactory
         }
       }
     }
+    $allNames = $this->collectTagNames($rootElement);
 
-    $hasListingDataFeed = $rootName === 'listingdatafeed' || $this->xml->has('ListingDataFeed');
-    $hasListings = in_array('listings', $childNames, true) || $this->xml->has('Listings') || count($this->xml->find('ListingDataFeed Listings')) > 0;
-    $hasProperties = in_array('properties', $childNames, true) || $this->xml->has('Properties');
+    $hasListingDataFeed = $rootName === 'listingdatafeed' || in_array('listingdatafeed', $allNames, true);
+    $hasListings = in_array('listings', $childNames, true) || in_array('listings', $allNames, true);
+    $hasProperties = in_array('properties', $childNames, true) || in_array('properties', $allNames, true);
 
     if ($hasListingDataFeed && $hasListings) {
       $this->provider = new EnglishGlobalModel($this->xml, $this->integration);
     } elseif ($hasListingDataFeed && $hasProperties) {
       $this->provider = new IGModel($this->xml, $this->integration);
-    } elseif ($this->xml->has('Union')) {
+    } elseif (in_array('union', $allNames, true)) {
       $this->provider = new UnionModel($this->xml, $this->integration);
-    } elseif ($this->xml->has('publish') && $this->xml->has('properties')) {
+    } elseif (in_array('publish', $allNames, true) && $hasProperties) {
       $this->provider = new CreciModel($this->xml, $this->integration);
-    } elseif ($this->xml->has('Carga')) {
+    } elseif (in_array('carga', $allNames, true)) {
       $this->provider = new TecImobModel($this->xml, $this->integration);
-    } elseif ($this->xml->has('Anuncios')) {
+    } elseif (in_array('anuncios', $allNames, true)) {
       $this->provider = new VistaModel($this->xml, $this->integration);
-    } elseif ($this->xml->has('imobibrasil') || $this->isImobiBrasilFormat()) {
+    } elseif (in_array('imobibrasil', $allNames, true) || $this->isImobiBrasilFormat()) {
       $this->provider = new ImobiBrasilModel($this->xml, $this->integration);
-    } elseif ($this->xml->has('OpenNavent')) {
+    } elseif (in_array('opennavent', $allNames, true)) {
       $this->provider = new OpenNaventModel($this->xml, $this->integration);
-    } elseif ($this->xml->has('ad')) {
+    } elseif (in_array('ad', $allNames, true)) {
       $this->provider = new MigMidiaModel($this->xml, $this->integration);
     } else {
       $integrationId = $this->integration ? $this->integration->id : 'N/A';
@@ -132,26 +133,23 @@ class XMLIntegrationsFactory
         'xml_size' => strlen($this->xml->xml()),
         'root_element' => $this->xml->getDocument()->documentElement ? $this->xml->getDocument()->documentElement->nodeName : 'unknown',
         'available_providers' => [
-          'ListingDataFeed + Listings' => $this->xml->has('ListingDataFeed') && $this->xml->has('Listings'),
-          'ListingDataFeed + Listings (nested)' => $this->xml->has('ListingDataFeed') && $this->xml->has('ListingDataFeed Listings'),
-          'ListingDataFeed + Properties' => $this->xml->has('ListingDataFeed') && $this->xml->has('Properties'),
-          'Union' => $this->xml->has('Union'),
-          'publish + properties' => $this->xml->has('publish') && $this->xml->has('properties'),
-          'Carga' => $this->xml->has('Carga'),
-          'Anuncios' => $this->xml->has('Anuncios'),
-          'imobibrasil' => $this->xml->has('imobibrasil'),
-          'OpenNavent' => $this->xml->has('OpenNavent'),
-          'ad' => $this->xml->has('ad')
+          'ListingDataFeed + Listings' => $hasListingDataFeed && $hasListings,
+          'ListingDataFeed + Properties' => $hasListingDataFeed && $hasProperties,
+          'Union' => in_array('union', $allNames, true),
+          'publish + properties' => in_array('publish', $allNames, true) && $hasProperties,
+          'Carga' => in_array('carga', $allNames, true),
+          'Anuncios' => in_array('anuncios', $allNames, true),
+          'imobibrasil' => in_array('imobibrasil', $allNames, true),
+          'OpenNavent' => in_array('opennavent', $allNames, true),
+          'ad' => in_array('ad', $allNames, true)
         ],
         'element_checks' => [
-          'has_ListingDataFeed' => $this->xml->has('ListingDataFeed'),
-          'has_Listings' => $this->xml->has('Listings'),
-          'has_ListingDataFeed_Listings' => $this->xml->has('ListingDataFeed Listings'),
-          'has_ListingDataFeed_Listings_count' => count($this->xml->find('ListingDataFeed Listings')),
-          'has_Properties' => $this->xml->has('Properties'),
-          'has_Carga' => $this->xml->has('Carga'),
-          'has_Anuncios' => $this->xml->has('Anuncios'),
-          'has_imobibrasil' => $this->xml->has('imobibrasil')
+          'has_listingdatafeed' => $hasListingDataFeed,
+          'has_listings' => $hasListings,
+          'has_properties' => $hasProperties,
+          'has_carga' => in_array('carga', $allNames, true),
+          'has_anuncios' => in_array('anuncios', $allNames, true),
+          'has_imobibrasil' => in_array('imobibrasil', $allNames, true)
         ]
       ]);
 
@@ -213,6 +211,31 @@ class XMLIntegrationsFactory
     } catch (\Exception $e) {
       return 'Structure analysis failed: ' . $e->getMessage();
     }
+  }
+
+  private function collectTagNames(?\DOMNode $node, int $limit = 500): array
+  {
+    if (!$node) {
+      return [];
+    }
+
+    $names = [];
+    $stack = [$node];
+    $processed = 0;
+
+    while ($stack && $processed < $limit) {
+      $current = array_pop($stack);
+      if ($current->nodeType === XML_ELEMENT_NODE) {
+        $name = strtolower($current->localName ?? $current->nodeName);
+        $names[$name] = true;
+        for ($i = $current->childNodes->length - 1; $i >= 0; $i--) {
+          $stack[] = $current->childNodes->item($i);
+        }
+        $processed++;
+      }
+    }
+
+    return array_keys($names);
   }
 
   public function setResponse($response): void
