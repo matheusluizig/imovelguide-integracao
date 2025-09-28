@@ -13,210 +13,292 @@ use App\Integracao\Infrastructure\Parsers\Models\MigMidiaModel;
 use App\Integracao\Infrastructure\Parsers\Models\OpenNaventModel;
 use App\Integracao\Infrastructure\Parsers\Models\ImobiBrasilModel;
 use App\Integracao\Infrastructure\Parsers\Models\EnglishGlobalModel;
-use App\Integracao\Infrastructure\Helpers\IntegrationHelper;
 use Exception;
+use RuntimeException;
 
 class XMLIntegrationsFactory
 {
-  private $xml = null;
-  private $response = null;
-  private $integration = null;
-  private $provider = null;
+    private ?Document $xml = null;
+    private $response = null;
+    private ?Integracao $integration = null;
+    private $provider = null;
 
-  public function __construct()
-  {
-  }
+    public function setIntegrationAndLoadXml(Integracao $integration, $document = null): void
+    {
+        $this->integration = $integration;
 
-  public function setIntegrationAndLoadXml(Integracao $integration, $document = null)
-  {
-    $this->integration = $integration;
-
-    if ($document) {
-      $this->xml = $document;
-      $this->findProvider();
-    } else {
-      $this->xml = new Document();
-
-      try {
-        if (!$this->response || !$this->response->body()) {
-          throw new \Exception('Response body is null or empty');
-        }
-        $xmlContent = str_replace('CDDATA', 'CDATA', $this->response->body());
-        $this->xml->load(
-          $xmlContent,
-          false,
-          Document::TYPE_XML,
-          LIBXML_PARSEHUGE | LIBXML_NSCLEAN | LIBXML_NOEMPTYTAG | LIBXML_NOBLANKS | LIBXML_NONET
-        );
-        $xmlFirstElement = $this->xml->getDocument()->firstChild;
-
-        if ($xmlFirstElement && ($xmlFirstElement->getAttribute('xmlns') || $xmlFirstElement->getAttribute('xsi'))) {
-          $xmlFirstElement->removeAttributeNS($xmlFirstElement->getAttribute('xmlns'), '');
-          $xmlFirstElement->removeAttributeNS($xmlFirstElement->getAttribute('xsi'), '');
-          $this->xml->load(
-            $this->xml->xml(),
-            false,
-            Document::TYPE_XML,
-            LIBXML_PARSEHUGE | LIBXML_NSCLEAN | LIBXML_NOEMPTYTAG | LIBXML_NOBLANKS | LIBXML_NONET
-          );
+        if ($document !== null) {
+            $this->xml = $document instanceof Document ? $document : new Document($document);
+            $this->findProvider();
+            return;
         }
 
+        $this->xml = new Document();
+        $this->loadXmlFromResponse();
         $this->findProvider();
-      } catch (Exception $e) {
-        throw $e;
-      }
     }
-  }
 
-  public function hasProvider(): bool
-  {
-    return $this->provider != null;
-  }
+    public function hasProvider(): bool
+    {
+        return $this->provider !== null;
+    }
 
-  public function getProvider(): Mixed
-  {
-    return $this->provider;
-  }
+    public function getProvider(): mixed
+    {
+        return $this->provider;
+    }
 
-  public function findProvider(): void
-  {
-    $this->logXmlStructure();
+    public function setResponse($response): void
+    {
+        $this->response = $response;
+    }
 
-    $rootElement = $this->xml->getDocument()->documentElement;
-    $normalize = function(string $name): string {
-      $parts = explode(':', $name);
-      return strtolower(end($parts));
-    };
-    $rootName = $rootElement ? $normalize($rootElement->nodeName) : '';
-    $childNames = [];
-    if ($rootElement) {
-      foreach ($rootElement->childNodes as $child) {
-        if ($child->nodeType === XML_ELEMENT_NODE) {
-          $childNames[] = $normalize($child->nodeName);
+    private function loadXmlFromResponse(): void
+    {
+        if (!$this->response || !method_exists($this->response, 'body')) {
+            throw new RuntimeException('Response body is null or empty');
         }
-      }
+
+        $body = $this->response->body();
+        if ($body === null || $body === '') {
+            throw new RuntimeException('Response body is null or empty');
+        }
+
+        $xmlContent = str_replace('CDDATA', 'CDATA', $body);
+        $previousSetting = libxml_use_internal_errors(true);
+
+        try {
+            $this->xml->load(
+                $xmlContent,
+                false,
+                Document::TYPE_XML,
+                LIBXML_PARSEHUGE | LIBXML_NSCLEAN | LIBXML_NOEMPTYTAG | LIBXML_NOBLANKS | LIBXML_NONET
+            );
+        } catch (Exception $exception) {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previousSetting);
+            throw $exception;
+        }
+
+        $errors = libxml_get_errors();
+        if (!empty($errors)) {
+            $first = reset($errors);
+            $message = $first ? trim($first->message) : 'Erro desconhecido ao carregar XML';
+            libxml_clear_errors();
+            libxml_use_internal_errors($previousSetting);
+            throw new RuntimeException($message);
+        }
+
+        libxml_clear_errors();
+        libxml_use_internal_errors($previousSetting);
     }
 
-    $hasListingDataFeed = $rootName === 'listingdatafeed' || $this->xml->has('ListingDataFeed');
-    $hasListings = in_array('listings', $childNames, true) || $this->xml->has('Listings') || count($this->xml->find('ListingDataFeed Listings')) > 0;
-    $hasProperties = in_array('properties', $childNames, true) || $this->xml->has('Properties');
+    private function findProvider(): void
+    {
+        if (!$this->xml instanceof Document) {
+            throw new RuntimeException('XML document not loaded');
+        }
 
-    if ($hasListingDataFeed && $hasListings) {
-      $this->provider = new EnglishGlobalModel($this->xml, $this->integration);
-    } elseif ($hasListingDataFeed && $hasProperties) {
-      $this->provider = new IGModel($this->xml, $this->integration);
-    } elseif ($this->xml->has('Union')) {
-      $this->provider = new UnionModel($this->xml, $this->integration);
-    } elseif ($this->xml->has('publish') && $this->xml->has('properties')) {
-      $this->provider = new CreciModel($this->xml, $this->integration);
-    } elseif ($this->xml->has('Carga')) {
-      $this->provider = new TecImobModel($this->xml, $this->integration);
-    } elseif ($this->xml->has('Anuncios')) {
-      $this->provider = new VistaModel($this->xml, $this->integration);
-    } elseif ($this->xml->has('imobibrasil') || $this->isImobiBrasilFormat()) {
-      $this->provider = new ImobiBrasilModel($this->xml, $this->integration);
-    } elseif ($this->xml->has('OpenNavent')) {
-      $this->provider = new OpenNaventModel($this->xml, $this->integration);
-    } elseif ($this->xml->has('ad')) {
-      $this->provider = new MigMidiaModel($this->xml, $this->integration);
-    } else {
-      $integrationId = $this->integration ? $this->integration->id : 'N/A';
-      $integrationLink = $this->integration ? $this->integration->link : 'N/A';
+        $structure = $this->describeStructure();
+        $tags = $structure['tags'];
+        $children = $structure['children'];
 
-      $xmlStructure = $this->getXmlStructureInfo();
+        $hasListingDataFeed = $structure['root'] === 'listingdatafeed' || isset($tags['listingdatafeed']);
+        $hasListings = isset($tags['listings']) || in_array('listings', $children, true);
+        $hasProperties = isset($tags['properties']) || in_array('properties', $children, true);
 
-      \Illuminate\Support\Facades\Log::channel('integration')->error("XML Provider Not Found", [
-        'integration_id' => $integrationId,
-        'integration_link' => $integrationLink,
-        'xml_structure' => $xmlStructure,
-        'xml_size' => strlen($this->xml->xml()),
-        'root_element' => $this->xml->getDocument()->documentElement ? $this->xml->getDocument()->documentElement->nodeName : 'unknown',
-        'available_providers' => [
-          'ListingDataFeed + Listings' => $this->xml->has('ListingDataFeed') && $this->xml->has('Listings'),
-          'ListingDataFeed + Listings (nested)' => $this->xml->has('ListingDataFeed') && $this->xml->has('ListingDataFeed Listings'),
-          'ListingDataFeed + Properties' => $this->xml->has('ListingDataFeed') && $this->xml->has('Properties'),
-          'Union' => $this->xml->has('Union'),
-          'publish + properties' => $this->xml->has('publish') && $this->xml->has('properties'),
-          'Carga' => $this->xml->has('Carga'),
-          'Anuncios' => $this->xml->has('Anuncios'),
-          'imobibrasil' => $this->xml->has('imobibrasil'),
-          'OpenNavent' => $this->xml->has('OpenNavent'),
-          'ad' => $this->xml->has('ad')
-        ],
-        'element_checks' => [
-          'has_ListingDataFeed' => $this->xml->has('ListingDataFeed'),
-          'has_Listings' => $this->xml->has('Listings'),
-          'has_ListingDataFeed_Listings' => $this->xml->has('ListingDataFeed Listings'),
-          'has_ListingDataFeed_Listings_count' => count($this->xml->find('ListingDataFeed Listings')),
-          'has_Properties' => $this->xml->has('Properties'),
-          'has_Carga' => $this->xml->has('Carga'),
-          'has_Anuncios' => $this->xml->has('Anuncios'),
-          'has_imobibrasil' => $this->xml->has('imobibrasil')
-        ]
-      ]);
+        if ($hasListingDataFeed && $hasListings) {
+            $this->provider = new EnglishGlobalModel($this->xml, $this->integration);
+            return;
+        }
 
-      throw new \Exception("Nenhum provedor encontrado para o XML da integração ID: {$integrationId}. Estrutura XML: {$xmlStructure}");
+        if ($hasListingDataFeed && $hasProperties) {
+            $this->provider = new IGModel($this->xml, $this->integration);
+            return;
+        }
+
+        if (isset($tags['union'])) {
+            $this->provider = new UnionModel($this->xml, $this->integration);
+            return;
+        }
+
+        if ((isset($tags['publish']) || in_array('publish', $children, true)) && $hasProperties) {
+            $this->provider = new CreciModel($this->xml, $this->integration);
+            return;
+        }
+
+        if (isset($tags['carga'])) {
+            $this->provider = new TecImobModel($this->xml, $this->integration);
+            return;
+        }
+
+        if (isset($tags['anuncios'])) {
+            $this->provider = new VistaModel($this->xml, $this->integration);
+            return;
+        }
+
+        if (isset($tags['imobibrasil']) || $this->isImobiBrasilFormat($structure)) {
+            $this->provider = new ImobiBrasilModel($this->xml, $this->integration);
+            return;
+        }
+
+        if (isset($tags['opennavent'])) {
+            $this->provider = new OpenNaventModel($this->xml, $this->integration);
+            return;
+        }
+
+        if (isset($tags['ad'])) {
+            $this->provider = new MigMidiaModel($this->xml, $this->integration);
+            return;
+        }
+
+        $integrationId = $this->integration ? $this->integration->id : 'N/A';
+        $integrationLink = $this->integration ? $this->integration->link : 'N/A';
+        $xmlStructure = $this->getXmlStructureInfo();
+
+        \Illuminate\Support\Facades\Log::channel('integration')->error('XML Provider Not Found', [
+            'integration_id' => $integrationId,
+            'integration_link' => $integrationLink,
+            'xml_structure' => $xmlStructure,
+            'xml_size' => strlen($this->xml->xml()),
+            'root_element' => $structure['root'] ?: 'unknown',
+            'available_providers' => [
+                'ListingDataFeed + Listings' => $hasListingDataFeed && $hasListings,
+                'ListingDataFeed + Properties' => $hasListingDataFeed && $hasProperties,
+                'Union' => isset($tags['union']),
+                'publish + properties' => (isset($tags['publish']) || in_array('publish', $children, true)) && $hasProperties,
+                'Carga' => isset($tags['carga']),
+                'Anuncios' => isset($tags['anuncios']),
+                'imobibrasil' => isset($tags['imobibrasil']),
+                'OpenNavent' => isset($tags['opennavent']),
+                'ad' => isset($tags['ad']),
+            ],
+            'element_checks' => [
+                'has_listingdatafeed' => $hasListingDataFeed,
+                'has_listings' => $hasListings,
+                'has_properties' => $hasProperties,
+                'has_carga' => isset($tags['carga']),
+                'has_anuncios' => isset($tags['anuncios']),
+                'has_imobibrasil' => isset($tags['imobibrasil']),
+            ],
+        ]);
+
+        throw new RuntimeException("Nenhum provedor encontrado para o XML da integração ID: {$integrationId}. Estrutura XML: {$xmlStructure}");
     }
-  }
 
-  private function logXmlStructure(): void
-  {
-    if (!$this->integration) {
-        return;
-    }
+    /**
+     * @return array{root: string, children: array<int, string>, tags: array<string, bool>}
+     */
+    private function describeStructure(): array
+    {
+        $document = $this->xml->getDocument();
+        $rootElement = $document->documentElement;
 
-    try {
-      $rootElement = $this->xml->getDocument()->documentElement;
-      $rootName = $rootElement ? $rootElement->nodeName : 'unknown';
+        if (!$rootElement) {
+            throw new RuntimeException('Root element not found');
+        }
 
-      $childElements = [];
-      if ($rootElement) {
+        $rootName = $this->normalizeTagName($rootElement->nodeName);
+        $childNames = [];
+
         foreach ($rootElement->childNodes as $child) {
-          if ($child->nodeType === XML_ELEMENT_NODE) {
-            $childElements[] = $child->nodeName;
-          }
+            if ($child->nodeType === XML_ELEMENT_NODE) {
+                $childNames[] = $this->normalizeTagName($child->nodeName);
+            }
         }
-      }
 
-
-    } catch (\Exception $e) {
-      \Illuminate\Support\Facades\Log::channel('integration')->warning("Failed to analyze XML structure", [
-        'integration_id' => $this->integration->id,
-        'error' => $e->getMessage()
-      ]);
+        return [
+            'root' => $rootName,
+            'children' => $childNames,
+            'tags' => $this->collectTagNames($rootElement),
+        ];
     }
-  }
 
-  private function getXmlStructureInfo(): string
-  {
-    try {
-      $rootElement = $this->xml->getDocument()->documentElement;
-      if (!$rootElement) {
-        return 'Root element not found';
-      }
-
-      $rootName = $rootElement->nodeName;
-      $childElements = [];
-
-      foreach ($rootElement->childNodes as $child) {
-        if ($child->nodeType === XML_ELEMENT_NODE) {
-          $childElements[] = $child->nodeName;
+    private function normalizeTagName(string $name): string
+    {
+        $local = strtolower($name);
+        if (strpos($local, ':') !== false) {
+            $segments = explode(':', $local);
+            return end($segments) ?: $local;
         }
-      }
 
-      $childInfo = empty($childElements) ? 'no children' : implode(', ', array_slice($childElements, 0, 5));
-      if (count($childElements) > 5) {
-        $childInfo .= '... (+' . (count($childElements) - 5) . ' more)';
-      }
-
-      return "Root: {$rootName}, Children: {$childInfo}";
-    } catch (\Exception $e) {
-      return 'Structure analysis failed: ' . $e->getMessage();
+        return $local;
     }
-  }
 
-  public function setResponse($response): void
-  {
-    $this->response = $response;
-  }
+    private function isImobiBrasilFormat(array $structure): bool
+    {
+        if ($structure['root'] === 'imobibrasil') {
+            return true;
+        }
+
+        if ($structure['root'] === 'imoveis' && isset($structure['tags']['imovel'])) {
+            return true;
+        }
+
+        $required = ['imovel', 'transacao', 'valor'];
+        foreach ($required as $tag) {
+            if (!isset($structure['tags'][$tag])) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param \DOMNode|null $node
+     * @param int $limit
+     * @return array<string, bool>
+     */
+    private function collectTagNames(?\DOMNode $node, int $limit = 500): array
+    {
+        if (!$node) {
+            return [];
+        }
+
+        $names = [];
+        $stack = [$node];
+        $processed = 0;
+
+        while (!empty($stack) && $processed < $limit) {
+            $current = array_pop($stack);
+            if ($current->nodeType === XML_ELEMENT_NODE) {
+                $names[$this->normalizeTagName($current->nodeName)] = true;
+                for ($index = $current->childNodes->length - 1; $index >= 0; $index--) {
+                    $stack[] = $current->childNodes->item($index);
+                }
+                $processed++;
+            }
+        }
+
+        return $names;
+    }
+
+    private function getXmlStructureInfo(): string
+    {
+        try {
+            $rootElement = $this->xml->getDocument()->documentElement;
+            if (!$rootElement) {
+                return 'Root element not found';
+            }
+
+            $rootName = $this->normalizeTagName($rootElement->nodeName);
+            $childElements = [];
+
+            foreach ($rootElement->childNodes as $child) {
+                if ($child->nodeType === XML_ELEMENT_NODE) {
+                    $childElements[] = $this->normalizeTagName($child->nodeName);
+                }
+            }
+
+            $childInfo = empty($childElements) ? 'no children' : implode(', ', array_slice($childElements, 0, 5));
+            if (count($childElements) > 5) {
+                $childInfo .= '... (+' . (count($childElements) - 5) . ' more)';
+            }
+
+            return "Root: {$rootName}, Children: {$childInfo}";
+        } catch (Exception $e) {
+            return 'Structure analysis failed: ' . $e->getMessage();
+        }
+    }
 }
