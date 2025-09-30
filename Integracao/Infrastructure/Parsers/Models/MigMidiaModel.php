@@ -1147,24 +1147,6 @@ class MigMidiaModel extends XMLBaseParser
         $anuncioService->validateAdPoints($user_id);
 
         $this->logDone();
-
-        $integrationInfo = [
-            'system' => 'OpenNavent',
-            'status' => 2,
-            'qtd' => $this->imoveisCount,
-            'updated_at' => Carbon::now()->toDateTimeString(),
-            'last_integration' => Carbon::now()->toDateTimeString()
-        ];
-
-        $this->integration->update($integrationInfo);
-        if ($this->canUpdateIntegrationStatus()) {
-            $this->endIntegration();
-        } else {
-            $this->endIntegrationWithErrorStatus();
-        }
-
-        $this->removeOldData($this->data);
-
-        $this->setParsed(true);
+        $this->finalizeIntegration('MigMidia', $this->data);
     }
 }

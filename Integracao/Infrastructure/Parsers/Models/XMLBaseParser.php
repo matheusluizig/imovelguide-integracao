@@ -41,6 +41,8 @@ abstract class XMLBaseParser
   protected $isManual = false;
   protected $isUpdate = false;
   protected $updateType = null;
+  protected $imagesExpected = 0;
+  protected $imagesInserted = 0;
   protected $LPPService;
   protected $userData = [];
 
@@ -201,6 +203,7 @@ abstract class XMLBaseParser
   protected function isDifferentImovel($existingImovel, $data): bool
   {
     return $existingImovel->type_id != $data['type_id'] ||
+      $existingImovel->status != ($data['status'] ?? $existingImovel->status) ||
       $existingImovel->new_immobile != $data['new_immobile'] ||
       $existingImovel->negotiation_id != $data['negotiation_id'] ||
       $existingImovel->condominio_mes != $data['condominio_mes'] ||
@@ -305,7 +308,6 @@ abstract class XMLBaseParser
         });
 
       $largeData = $img->encode('webp', 85)->getEncoded();
-      
       // Log upload da imagem large
       \Log::channel('integration')->info("📤 S3: Starting large image upload", [
           's3_path' => $s3Path,
@@ -315,17 +317,16 @@ abstract class XMLBaseParser
               'height' => $img->height()
           ]
       ]);
-      
+
       $uploadStartTime = microtime(true);
       Storage::disk('do_spaces')->put($s3Path, $largeData, 'public');
       $uploadTime = microtime(true) - $uploadStartTime;
-      
       \Log::channel('integration')->info("✅ S3: Large image upload successful", [
           's3_path' => $s3Path,
           'upload_time_seconds' => round($uploadTime, 3),
           'upload_speed_mbps' => round((strlen($largeData) / 1024 / 1024) / $uploadTime, 2)
       ]);
-
+      
       $smallImg = Image::make($tempPath)
         ->orientate()
         ->resize(280, 250, function ($constraint) {
@@ -334,17 +335,17 @@ abstract class XMLBaseParser
 
       $smallData = $smallImg->encode('webp', 85)->getEncoded();
       $smallPath = "images/integration/properties/small/{$cleanImageName}.webp";
-      
+
       // Log upload da imagem small
       \Log::channel('integration')->info("📤 S3: Starting small image upload", [
           's3_path' => $smallPath,
           'image_size_bytes' => strlen($smallData)
       ]);
-      
+
       $uploadStartTime = microtime(true);
       Storage::disk('do_spaces')->put($smallPath, $smallData, 'public');
       $uploadTime = microtime(true) - $uploadStartTime;
-      
+
       \Log::channel('integration')->info("✅ S3: Small image upload successful", [
           's3_path' => $smallPath,
           'upload_time_seconds' => round($uploadTime, 3)
@@ -358,21 +359,11 @@ abstract class XMLBaseParser
 
       $mediumData = $mediumImg->encode('webp', 85)->getEncoded();
       $mediumPath = "images/integration/properties/medium/{$cleanImageName}.webp";
-      
-      // Log upload da imagem medium
-      \Log::channel('integration')->info("📤 S3: Starting medium image upload", [
-          's3_path' => $mediumPath,
-          'image_size_bytes' => strlen($mediumData)
-      ]);
-      
+
       $uploadStartTime = microtime(true);
       Storage::disk('do_spaces')->put($mediumPath, $mediumData, 'public');
       $uploadTime = microtime(true) - $uploadStartTime;
-      
-      \Log::channel('integration')->info("✅ S3: Medium image upload successful", [
-          's3_path' => $mediumPath,
-          'upload_time_seconds' => round($uploadTime, 3)
-      ]);
+
 
       unlink($tempPath);
 
@@ -393,7 +384,7 @@ abstract class XMLBaseParser
   /**
    * Insere ou atualiza imagens evitando duplicatas
    */
-  protected function insertOrUpdateImages(int $anuncioId, array $imagesToInsert, string $operation = 'inserted'): void
+  protected function insertOrUpdateImages(int $anuncioId, array $imagesToInsert, string $operation = 'inserted'): int
   {
     try {
       $insertedCount = 0;
@@ -437,15 +428,6 @@ abstract class XMLBaseParser
         }
       }
 
-      \Log::channel('integration')->info("📊 IMAGE: Batch operation completed", [
-          'integration_id' => $this->integration->id ?? null,
-          'anuncio_id' => $anuncioId,
-          'operation' => $operation,
-          'inserted_count' => $insertedCount,
-          'updated_count' => $updatedCount,
-          'total_processed' => count($imagesToInsert)
-      ]);
-
     } catch (\Exception $e) {
       \Log::channel('integration')->error("❌ IMAGE: Failed to insert/update images", [
           'integration_id' => $this->integration->id ?? null,
@@ -464,6 +446,7 @@ abstract class XMLBaseParser
             'anuncio_id' => $anuncioId,
             'operation' => 'fallback_insert'
         ]);
+        return count($imagesToInsert);
       } catch (\Exception $fallbackError) {
         \Log::channel('integration')->error("💀 IMAGE: CRITICAL - Even fallback failed", [
             'integration_id' => $this->integration->id ?? null,
@@ -471,7 +454,9 @@ abstract class XMLBaseParser
             'fallback_error' => $fallbackError->getMessage()
         ]);
       }
+      return 0;
     }
+    return $insertedCount + $updatedCount;
   }
 
   protected function deleteIntegrationImage($imageFileName)
@@ -568,6 +553,40 @@ abstract class XMLBaseParser
     }
 
     $this->logger->loggerDone($this->imoveisCount, $this->quantityMade);
+  }
+
+  protected function finalizeIntegration(string $system, $data): void
+  {
+    \Log::channel('integration')->info('📊 PARSER: Totais de integração (generic)', [
+      'integration_id' => $this->integration->id ?? null,
+      'provider' => $system,
+      'imoveis_encontrados' => $this->imoveisCount,
+      'imoveis_integrados' => $this->quantityMade,
+      'imagens_esperadas' => $this->imagesExpected,
+      'imagens_processadas' => $this->imagesInserted
+    ]);
+
+    $allAdsIntegrated = ($this->quantityMade === $this->imoveisCount);
+    $allImagesProcessed = ($this->imagesExpected === $this->imagesInserted);
+    $finalStatus = ($allAdsIntegrated && $allImagesProcessed) ? Integracao::XML_STATUS_INTEGRATED : Integracao::XML_STATUS_IN_ANALYSIS;
+
+    $integrationInfo = [
+      'system' => $system,
+      'status' => $finalStatus,
+      'qtd' => $this->imoveisCount,
+      'updated_at' => Carbon::now()->toDateTimeString(),
+      'last_integration' => Carbon::now()->toDateTimeString()
+    ];
+
+    $this->integration->update($integrationInfo);
+    if ($this->canUpdateIntegrationStatus() && $finalStatus === Integracao::XML_STATUS_INTEGRATED) {
+      $this->endIntegration();
+    } else {
+      $this->endIntegrationWithErrorStatus();
+    }
+
+    $this->removeOldData($data);
+    $this->setParsed(true);
   }
 
   public function sendEmail($userId)

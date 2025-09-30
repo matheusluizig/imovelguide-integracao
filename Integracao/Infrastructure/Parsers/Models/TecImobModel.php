@@ -1055,33 +1055,10 @@ class TecImobModel extends XMLBaseParser
 
                                     $imageObject = Image::make($fileData);
                                     $originalData = $imageObject->encode('webp', 85)->getEncoded();
-                                    // Log antes do upload S3
-                                    \Log::channel('integration')->info("📤 S3: Starting image upload", [
-                                        'integration_id' => $this->integration->id,
-                                        'imovel_id' => $imovelId,
-                                        'codigo_imovel' => $imovel['CodigoImovel'] ?? null,
-                                        'image_url' => $url,
-                                        's3_path' => $s3Path,
-                                        'image_size_bytes' => strlen($originalData),
-                                        'image_dimensions' => [
-                                            'width' => $imageObject->width(),
-                                            'height' => $imageObject->height()
-                                        ]
-                                    ]);
                                     
                                     $uploadStartTime = microtime(true);
                                     Storage::disk('do_spaces')->put($s3Path, $originalData, 'public');
                                     $uploadTime = microtime(true) - $uploadStartTime;
-                                    
-                                    // Log após upload S3 bem-sucedido
-                                    \Log::channel('integration')->info("✅ S3: Image upload successful", [
-                                        'integration_id' => $this->integration->id,
-                                        'imovel_id' => $imovelId,
-                                        'codigo_imovel' => $imovel['CodigoImovel'] ?? null,
-                                        's3_path' => $s3Path,
-                                        'upload_time_seconds' => round($uploadTime, 3),
-                                        'upload_speed_mbps' => round((strlen($originalData) / 1024 / 1024) / $uploadTime, 2)
-                                    ]);
 
                                     $basePath = public_path("images/$imageFileName");
                                     $imageObject->save($basePath);
@@ -1148,34 +1125,10 @@ class TecImobModel extends XMLBaseParser
 
                                     $imageObject = Image::make($fileData);
                                     $originalData = $imageObject->encode('webp', 85)->getEncoded();
-                                    // Log antes do upload S3
-                                    \Log::channel('integration')->info("📤 S3: Starting image upload", [
-                                        'integration_id' => $this->integration->id,
-                                        'imovel_id' => $imovelId,
-                                        'codigo_imovel' => $imovel['CodigoImovel'] ?? null,
-                                        'image_url' => $url,
-                                        's3_path' => $s3Path,
-                                        'image_size_bytes' => strlen($originalData),
-                                        'image_dimensions' => [
-                                            'width' => $imageObject->width(),
-                                            'height' => $imageObject->height()
-                                        ]
-                                    ]);
                                     
                                     $uploadStartTime = microtime(true);
                                     Storage::disk('do_spaces')->put($s3Path, $originalData, 'public');
                                     $uploadTime = microtime(true) - $uploadStartTime;
-                                    
-                                    // Log após upload S3 bem-sucedido
-                                    \Log::channel('integration')->info("✅ S3: Image upload successful", [
-                                        'integration_id' => $this->integration->id,
-                                        'imovel_id' => $imovelId,
-                                        'codigo_imovel' => $imovel['CodigoImovel'] ?? null,
-                                        's3_path' => $s3Path,
-                                        'upload_time_seconds' => round($uploadTime, 3),
-                                        'upload_speed_mbps' => round((strlen($originalData) / 1024 / 1024) / $uploadTime, 2)
-                                    ]);
-
                                     $basePath = public_path("images/$imageFileName");
                                     $imageObject->save($basePath);
 
@@ -1208,24 +1161,6 @@ class TecImobModel extends XMLBaseParser
         $anuncioService->validateAdPoints($user_id);
 
         $this->logDone();
-
-        $integrationInfo = [
-            'system' => 'TecImob',
-            'status' => 2,
-            'qtd' => $this->imoveisCount,
-            'updated_at' => Carbon::now()->toDateTimeString(),
-            'last_integration' => Carbon::now()->toDateTimeString()
-        ];
-
-        $this->integration->update($integrationInfo);
-        if ($this->canUpdateIntegrationStatus()) {
-            $this->endIntegration();
-        } else {
-            $this->endIntegrationWithErrorStatus();
-        }
-
-        $this->removeOldData($this->data);
-
-        $this->setParsed(true);
+        $this->finalizeIntegration('TecImob', $this->data);
     }
 }

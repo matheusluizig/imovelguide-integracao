@@ -902,33 +902,10 @@ class CreciModel extends XMLBaseParser
 
                   $imageObject = Image::make($fileData);
                   $originalData = $imageObject->encode('webp', 85)->getEncoded();
-                  // Log antes do upload S3
-                  \Log::channel('integration')->info("📤 S3: Starting image upload", [
-                      'integration_id' => $this->integration->id,
-                      'imovel_id' => $imovelId,
-                      'codigo_imovel' => $imovel['CodigoImovel'] ?? null,
-                      'image_url' => $url,
-                      's3_path' => $s3Path,
-                      'image_size_bytes' => strlen($originalData),
-                      'image_dimensions' => [
-                          'width' => $imageObject->width(),
-                          'height' => $imageObject->height()
-                      ]
-                  ]);
                   
                   $uploadStartTime = microtime(true);
                   Storage::disk('do_spaces')->put($s3Path, $originalData, 'public');
                   $uploadTime = microtime(true) - $uploadStartTime;
-                  
-                  // Log após upload S3 bem-sucedido
-                  \Log::channel('integration')->info("✅ S3: Image upload successful", [
-                      'integration_id' => $this->integration->id,
-                      'imovel_id' => $imovelId,
-                      'codigo_imovel' => $imovel['CodigoImovel'] ?? null,
-                      's3_path' => $s3Path,
-                      'upload_time_seconds' => round($uploadTime, 3),
-                      'upload_speed_mbps' => round((strlen($originalData) / 1024 / 1024) / $uploadTime, 2)
-                  ]);
 
                   $basePath = public_path("images/$imageFileName");
                   $imageObject->save($basePath);
@@ -1004,33 +981,11 @@ class CreciModel extends XMLBaseParser
 
                   $imageObject = Image::make($fileData);
                   $originalData = $imageObject->encode('webp', 85)->getEncoded();
-                  // Log antes do upload S3
-                  \Log::channel('integration')->info("📤 S3: Starting image upload", [
-                      'integration_id' => $this->integration->id,
-                      'imovel_id' => $imovelId,
-                      'codigo_imovel' => $imovel['CodigoImovel'] ?? null,
-                      'image_url' => $url,
-                      's3_path' => $s3Path,
-                      'image_size_bytes' => strlen($originalData),
-                      'image_dimensions' => [
-                          'width' => $imageObject->width(),
-                          'height' => $imageObject->height()
-                      ]
-                  ]);
                   
                   $uploadStartTime = microtime(true);
                   Storage::disk('do_spaces')->put($s3Path, $originalData, 'public');
                   $uploadTime = microtime(true) - $uploadStartTime;
-                  
-                  // Log após upload S3 bem-sucedido
-                  \Log::channel('integration')->info("✅ S3: Image upload successful", [
-                      'integration_id' => $this->integration->id,
-                      'imovel_id' => $imovelId,
-                      'codigo_imovel' => $imovel['CodigoImovel'] ?? null,
-                      's3_path' => $s3Path,
-                      'upload_time_seconds' => round($uploadTime, 3),
-                      'upload_speed_mbps' => round((strlen($originalData) / 1024 / 1024) / $uploadTime, 2)
-                  ]);
+
 
                   $basePath = public_path("images/$imageFileName");
                   $imageObject->save($basePath);
@@ -1055,12 +1010,7 @@ class CreciModel extends XMLBaseParser
 
             if ($imagesCounter) {
               $this->insertOrUpdateImages($imovelId, $imagesToInsert, 'updated');
-              Log::channel('integration_items')->info('Imagens atualizadas para imóvel', [
-                'integration_id' => $this->integration->id,
-                'anuncio_id' => $imovelId,
-                'codigo_imovel' => $imovel['CodigoImovel'] ?? null,
-                'images_count' => $imagesCounter
-              ]);
+
               if ($this->isManual) {
                 echo "Imagem(update) Nº: $index - Anúncio Código: {$imovel['CodigoImovel']}.\n";
               }
@@ -1073,24 +1023,6 @@ class CreciModel extends XMLBaseParser
     $anuncioService->validateAdPoints($user_id);
 
     $this->logDone();
-
-    $integrationInfo = [
-      'system' => 'Creci',
-      'status' => 2,
-      'qtd' => $this->imoveisCount,
-      'updated_at' => Carbon::now()->toDateTimeString(),
-      'last_integration' => Carbon::now()->toDateTimeString(),
-    ];
-
-    $this->integration->update($integrationInfo);
-    if ($this->canUpdateIntegrationStatus()) {
-      $this->endIntegration();
-    } else {
-      $this->endIntegrationWithErrorStatus();
-    }
-
-    $this->removeOldData($this->data);
-
-    $this->setParsed(true);
+    $this->finalizeIntegration('Creci', $this->data);
   }
 }

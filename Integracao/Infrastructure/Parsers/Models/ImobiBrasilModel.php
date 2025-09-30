@@ -768,9 +768,6 @@ class ImobiBrasilModel extends XMLBaseParser {
             $imovelId = 0;
             $existingImovel = $userAnuncios->whereStrict('codigo', $imovel['CodigoImovel'])->last();
             if ($existingImovel) {
-                if ($existingImovel->status === 'inativado') {
-                    continue;
-                }
                 if ($this->isDifferentImovel($existingImovel, $newAnuncioInfo)) {
                     $newAnuncioInfo['updated_at'] = Carbon::now('America/Sao_Paulo');
                     $existingImovel->update($newAnuncioInfo);
@@ -897,6 +894,7 @@ class ImobiBrasilModel extends XMLBaseParser {
             if ($isNewAnuncio || $this->updateType != Integracao::XML_STATUS_IN_DATA_UPDATE) {
                 if ($isNewAnuncio) {
                     if (count($imovel['images'])) {
+                        $this->imagesExpected += count($imovel['images']);
                         $imagesToInsert = [];
                         $imagesCounter = 0;
                         foreach ($imovel['images'] as $url) {
@@ -915,33 +913,10 @@ class ImobiBrasilModel extends XMLBaseParser {
 
                                     $imageObject = Image::make($fileData);
                                     $originalData = $imageObject->encode('webp', 85)->getEncoded();
-                                    // Log antes do upload S3
-                                    \Log::channel('integration')->info("📤 S3: Starting image upload", [
-                                        'integration_id' => $this->integration->id,
-                                        'imovel_id' => $imovelId,
-                                        'codigo_imovel' => $imovel['CodigoImovel'] ?? null,
-                                        'image_url' => $url,
-                                        's3_path' => $s3Path,
-                                        'image_size_bytes' => strlen($originalData),
-                                        'image_dimensions' => [
-                                            'width' => $imageObject->width(),
-                                            'height' => $imageObject->height()
-                                        ]
-                                    ]);
                                     
                                     $uploadStartTime = microtime(true);
                                     Storage::disk('do_spaces')->put($s3Path, $originalData, 'public');
                                     $uploadTime = microtime(true) - $uploadStartTime;
-                                    
-                                    // Log após upload S3 bem-sucedido
-                                    \Log::channel('integration')->info("✅ S3: Image upload successful", [
-                                        'integration_id' => $this->integration->id,
-                                        'imovel_id' => $imovelId,
-                                        'codigo_imovel' => $imovel['CodigoImovel'] ?? null,
-                                        's3_path' => $s3Path,
-                                        'upload_time_seconds' => round($uploadTime, 3),
-                                        'upload_speed_mbps' => round((strlen($originalData) / 1024 / 1024) / $uploadTime, 2)
-                                    ]);
 
                                     $basePath = public_path("images/$imageFileName");
                                     $imageObject->save($basePath);
@@ -962,7 +937,7 @@ class ImobiBrasilModel extends XMLBaseParser {
                         }
 
                         if ($imagesCounter) {
-                            $this->insertOrUpdateImages($imovelId, $imagesToInsert, 'inserted');
+                            $this->imagesInserted += $this->insertOrUpdateImages($imovelId, $imagesToInsert, 'inserted');
                             Log::channel('integration_items')->info('Imagens inseridas para imóvel', [
                                 'integration_id' => $this->integration->id,
                                 'anuncio_id' => $imovelId,
@@ -989,6 +964,7 @@ class ImobiBrasilModel extends XMLBaseParser {
                     }
 
                     if (count($toDownload)) {
+                        $this->imagesExpected += count($toDownload);
                         $toDelete = $oldImages->whereNotIn('name', $toCompare);
                         foreach ($toDelete as $key => $imageToDelete) {
                             $this->deleteIntegrationImage($imageToDelete->name);
@@ -1014,33 +990,10 @@ class ImobiBrasilModel extends XMLBaseParser {
 
                                     $imageObject = Image::make($fileData);
                                     $originalData = $imageObject->encode('webp', 85)->getEncoded();
-                                    // Log antes do upload S3
-                                    \Log::channel('integration')->info("📤 S3: Starting image upload", [
-                                        'integration_id' => $this->integration->id,
-                                        'imovel_id' => $imovelId,
-                                        'codigo_imovel' => $imovel['CodigoImovel'] ?? null,
-                                        'image_url' => $url,
-                                        's3_path' => $s3Path,
-                                        'image_size_bytes' => strlen($originalData),
-                                        'image_dimensions' => [
-                                            'width' => $imageObject->width(),
-                                            'height' => $imageObject->height()
-                                        ]
-                                    ]);
-                                    
+
                                     $uploadStartTime = microtime(true);
                                     Storage::disk('do_spaces')->put($s3Path, $originalData, 'public');
                                     $uploadTime = microtime(true) - $uploadStartTime;
-                                    
-                                    // Log após upload S3 bem-sucedido
-                                    \Log::channel('integration')->info("✅ S3: Image upload successful", [
-                                        'integration_id' => $this->integration->id,
-                                        'imovel_id' => $imovelId,
-                                        'codigo_imovel' => $imovel['CodigoImovel'] ?? null,
-                                        's3_path' => $s3Path,
-                                        'upload_time_seconds' => round($uploadTime, 3),
-                                        'upload_speed_mbps' => round((strlen($originalData) / 1024 / 1024) / $uploadTime, 2)
-                                    ]);
 
                                     $basePath = public_path("images/$imageFileName");
                                     $imageObject->save($basePath);
@@ -1061,13 +1014,7 @@ class ImobiBrasilModel extends XMLBaseParser {
                         }
 
                         if ($imagesCounter) {
-                            $this->insertOrUpdateImages($imovelId, $imagesToInsert, 'updated');
-                            Log::channel('integration_items')->info('Imagens atualizadas para imóvel', [
-                                'integration_id' => $this->integration->id,
-                                'anuncio_id' => $imovelId,
-                                'codigo_imovel' => $imovel['CodigoImovel'] ?? null,
-                                'images_count' => $imagesCounter
-                            ]);
+                            $this->imagesInserted += $this->insertOrUpdateImages($imovelId, $imagesToInsert, 'updated');
                             if ($this->isManual) {
                                 echo "Imagem(update) Nº: $index - Anúncio Código: {$imovel['CodigoImovel']}.\n";
                             }
@@ -1080,24 +1027,6 @@ class ImobiBrasilModel extends XMLBaseParser {
         $anuncioService->validateAdPoints($user_id);
 
         $this->logDone();
-
-        $integrationInfo = [
-            'system' => 'ImobiBrasil',
-            'status' => 2,
-            'qtd' => $this->imoveisCount,
-            'updated_at' => Carbon::now()->toDateTimeString(),
-            'last_integration' => Carbon::now()->toDateTimeString()
-        ];
-
-        $this->integration->update($integrationInfo);
-        if ($this->canUpdateIntegrationStatus()) {
-            $this->endIntegration();
-        } else {
-            $this->endIntegrationWithErrorStatus();
-        }
-
-        $this->removeOldData($this->data);
-
-        $this->setParsed(true);
+        $this->finalizeIntegration('ImobiBrasil', $this->data);
     }
 }
